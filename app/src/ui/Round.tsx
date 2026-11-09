@@ -151,7 +151,7 @@ export function RoundDetail({ id }: { id: string }) {
   const [sent, setSent] = useState<Broadcast>();
   const [risen, setRisen] = useState<number>();
   const onChain = st === undefined ? undefined : !!st;
-  const sentVia = sent ? sourceLabel(sent.source) : undefined;
+  const sentVia = sent ? sourceLabel(sent.source, undefined, chainApis()) : undefined;
   const [checked, setChecked] = useState(false); // asked the sources since the last broadcast
   const r = s.rounds.find(x => x.event.id === id);
   const apis = chainApis();
@@ -292,7 +292,7 @@ export function RoundDetail({ id }: { id: string }) {
               {onChain ? (
                 <>
                   <p class="small">{t('rd.broadcasted')}</p>
-                  {seen.length > 0 && <p class="small">{t('rd.seenBy', { n: seen.length, m: apis.length, list: seen.map(x => sourceLabel(x)).join(', ') })}</p>}
+                  {seen.length > 0 && <p class="small">{t('rd.seenBy', { n: seen.length, m: apis.length, list: seen.map(x => sourceLabel(x, undefined, apis)).join(', ') })}</p>}
                   {/* A source may know the transaction without passing it to miners: let anyone send it again. */}
                   <p class="small">{t('rd.stuck')}</p>
                   <button type="button" class="btn secondary" disabled={busy} onClick={doBroadcast}>{t('rd.again')}</button>
@@ -368,9 +368,9 @@ export function openRound(s: { rounds: RoundView[] }) {
 function BroadcastReport({ b }: { b: Broadcast }) {
   return (
     <div class="small stack" style="gap:2px">
-      <span>{t('rd.acceptedBy', { list: b.accepted.map(x => sourceLabel(x)).join(', ') })}</span>
+      <span>{t('rd.acceptedBy', { list: b.accepted.map(x => sourceLabel(x, undefined, chainApis())).join(', ') })}</span>
       {b.behind.length > 0 && <span>{t('rd.behind', { list: b.behind.join(' · ') })}</span>}
-      {b.refused.map(x => <span>{t('rd.refusedBy', { source: sourceLabel(x.source), reason: x.reason })}</span>)}
+      {b.refused.map(x => <span>{t('rd.refusedBy', { source: sourceLabel(x.source, undefined, chainApis()), reason: x.reason })}</span>)}
     </div>
   );
 }

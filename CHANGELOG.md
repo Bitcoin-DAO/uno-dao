@@ -2,6 +2,13 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.2.4 · 9 November 2026
+
+Found during UNO DAO's first payout round.
+
+- **The gateway's broadcast report reads cleanly.** The gateway listed its services with " · ", which browsers read as "Â·" in a header; it now uses " | ", and the app reads both.
+- **The gateway's two paths are told apart.** "Accepted by" and "Known to" named the gateway twice; they now say `(Blockbook)` and `(Esplora)` when two sources share one server.
+
 ## v0.2.3 · 9 November 2026
 
 Found during UNO DAO's first payout proposal.

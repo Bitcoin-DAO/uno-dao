@@ -83,9 +83,13 @@ let lastUpstream: string | undefined;
 let lastAnswer: { api: string; upstream?: string } | undefined;
 
 /** A short name for a source: its host, with the service behind it when the source is a chain gateway. */
-export function sourceLabel(api: string, upstream?: string): string {
-  const host = explorerOf(api).replace(/^https?:\/\//, '').split('/')[0];
-  return upstream ? `${upstream} · ${host.split('.')[0]}` : host;
+export function sourceLabel(api: string, upstream?: string, all: string[] = []): string {
+  const hostOf = (a: string) => explorerOf(a).replace(/^https?:\/\//, '').split('/')[0];
+  const host = hostOf(api);
+  if (upstream) return `${upstream} · ${host.split('.')[0]}`;
+  // Two entries on one host (a chain gateway's Blockbook and Esplora paths): say which.
+  const shared = all.some(a => a !== api && hostOf(a) === host);
+  return shared ? `${host} (${sourceOf(api).kind === 'blockbook' ? 'Blockbook' : 'Esplora'})` : host;
 }
 
 /** A chain source from the config's chainApi: an Esplora API, or a Blockbook server written "blockbook:<address>". */
@@ -369,7 +373,8 @@ export async function broadcast(apis: string[], hex: string, txid: string): Prom
   const results = await Promise.all(tries);
   const accepted = results.filter(x => x.ok).map(x => x.api);
   const refused = results.filter(x => !x.ok).map(x => ({ source: x.api, reason: x.reason }));
-  const behind = results.flatMap(x => (x.gateway ? x.gateway.split(' · ') : []));
+  // " | " from the gateway; older gateways sent " · ", which arrives as "Â·" (headers are read as Latin-1).
+  const behind = results.flatMap(x => (x.gateway ? x.gateway.split(/\s+(?:\||·|Â·)\s+/) : []));
   if (!accepted.length) throw new Error(refused.map(x => `${sourceLabel(x.source)}: ${x.reason}`).join(' · ') || 'no chain API');
   return { txid, source: accepted[0], accepted, refused, behind: [...new Set(behind)] };
 }

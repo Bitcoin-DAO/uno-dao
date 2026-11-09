@@ -138,6 +138,8 @@ describe('fees and depth', () => {
 
   it('names a source by its host, and the service behind a gateway', () => {
     expect(sourceLabel('https://mempool.space/testnet4/api')).toBe('mempool.space');
+    const all = ['blockbook:https://gw.example/bb', 'https://gw.example/esplora/api', 'https://mempool.space/testnet4/api'];
+    expect(all.map(a => sourceLabel(a, undefined, all))).toEqual(['gw.example (Blockbook)', 'gw.example (Esplora)', 'mempool.space']);
     expect(sourceLabel('blockbook:https://btc-dao-gateway.btcdao.workers.dev/bb', 'blockbook.tbtc.zelcore.io')).toBe('blockbook.tbtc.zelcore.io · btc-dao-gateway');
   });
 });

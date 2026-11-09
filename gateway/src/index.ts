@@ -31,6 +31,9 @@ const cache = new Map<string, Cached>();
 const hits = new Map<string, { start: number; n: number }>();
 const health = new Map<string, { ok: boolean; at: number; error?: string }>();
 
+/** Header values are read as Latin-1 by browsers: keep them ASCII, with " | " between the sources. */
+const header = (parts: string[]) => parts.join(' | ').replace(/[^\x20-\x7e]/g, '?');
+
 /** For tests. */
 export function reset() {
   cache.clear();
@@ -200,8 +203,8 @@ async function broadcast(kind: Kind, env: Env, hex: string, h: Record<string, st
   if (accepted) {
     cache.clear(); // balances and statuses change
     return kind === 'bb'
-      ? reply(200, JSON.stringify({ result: txid }), 'application/json', { ...h, 'X-Gateway-Broadcast': reasons.join(' · ') })
-      : reply(200, txid, 'text/plain', { ...h, 'X-Gateway-Broadcast': reasons.join(' · ') });
+      ? reply(200, JSON.stringify({ result: txid }), 'application/json', { ...h, 'X-Gateway-Broadcast': header(reasons) })
+      : reply(200, txid, 'text/plain', { ...h, 'X-Gateway-Broadcast': header(reasons) });
   }
   const msg = `no source accepted it: ${reasons.join(' · ')}`;
   return kind === 'bb' ? reply(400, JSON.stringify({ error: msg }), 'application/json', h) : reply(400, msg, 'text/plain', h);

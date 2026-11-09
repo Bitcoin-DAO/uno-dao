@@ -173,6 +173,8 @@ describe('broadcasting', () => {
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ result: id });
     expect(r.headers.get('X-Gateway-Broadcast')).toMatch(/es2\.example: accepted/);
+    expect(r.headers.get('X-Gateway-Broadcast')).toMatch(/^[\x20-\x7e]+$/); // ASCII only: browsers read headers as Latin-1
+    expect(r.headers.get('X-Gateway-Broadcast')).toContain(' | ');
     expect(JSON.parse(log.mock.calls[0][0] as string)).toMatchObject({ broadcast: id, accepted: true });
     log.mockRestore();
     expect(calls.filter(c => c.startsWith('POST')).sort()).toEqual([

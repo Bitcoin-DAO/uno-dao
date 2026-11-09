@@ -70,8 +70,8 @@ async function signUp(page, name, council) {
     await paste(a, codes[n]);
     await a.getByRole('button', { name: 'Coincide: aggiungi' }).click();
   }
-  await a.getByRole('button', { name: '−' }).click();
-  check(await a.getByText('2 di 5').isVisible(), 'threshold 2');
+  check(await a.getByText('2 di 3').isVisible(), 'threshold follows the council added: 2 of 3 (site file has 5 placeholders)');
+  check(await a.getByText('3 finora').isVisible(), 'council size shown');
   await a.getByRole('button', { name: '3 · Fondatori' }).click();
   await a.getByRole('button', { name: 'Scansiona un fondatore' }).click();
   await paste(a, codes['@elena']);

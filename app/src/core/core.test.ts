@@ -214,3 +214,20 @@ describe('competing genesis for the same site', () => {
     expect(rebuild({ ...site, daoId: real.daoId }, evs).conflict).toBe(false);
   });
 });
+
+describe('founding threshold', () => {
+  const st = (n: number, threshold: number, extra = {}) => ({ council: Array(n).fill(0), threshold, ...extra });
+  it('follows the council added, not the site file: 2 of 3, 3 of 5', async () => {
+    const { settleThreshold } = await import('./config');
+    expect(settleThreshold(st(1, 3)).threshold).toBe(1);
+    expect(settleThreshold(st(2, 3)).threshold).toBe(2);
+    expect(settleThreshold(st(3, 3)).threshold).toBe(2);
+    expect(settleThreshold(st(5, 2)).threshold).toBe(3);
+  });
+  it('keeps a hand-set threshold, capped at the council size, and never changes a published one', async () => {
+    const { settleThreshold } = await import('./config');
+    expect(settleThreshold(st(3, 3, { thresholdSet: true })).threshold).toBe(3);
+    expect(settleThreshold(st(2, 3, { thresholdSet: true })).threshold).toBe(2);
+    expect(settleThreshold(st(3, 3, { genesisId: 'x' })).threshold).toBe(3);
+  });
+});

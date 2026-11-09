@@ -85,6 +85,9 @@ async function councilAction(page, buttonName) {
     await paste(a, codes[n]);
     await a.getByRole('button', { name: 'Coincide: aggiungi' }).click();
   }
+  await a.getByText('2 di 3').waitFor();
+  await a.getByRole('button', { name: '+' }).click();
+  await a.getByText('3 di 3').waitFor();
   await a.getByRole('button', { name: '3 · Fondatori' }).click();
   for (const n of ['@elena', '@marta']) {
     await a.getByRole('button', { name: 'Scansiona un fondatore' }).click();

@@ -3,7 +3,7 @@ import { periodText, ruleValue } from './Proposals';
 import { useEffect, useState } from 'preact/hooks';
 import { publishSigned, sync, useApp } from '../app';
 import { fmtSats, t } from '../i18n';
-import { buildGenesis, isPlaceholder, PRACTICE_VOTE_DAYS, isPracticeVotes } from '../core/config';
+import { buildGenesis, isPlaceholder, PRACTICE_VOTE_DAYS, isPracticeVotes, settleThreshold } from '../core/config';
 import { buildDescriptor, parseKeyOrigin } from '../core/descriptor';
 import { KIND, sign, template } from '../core/events';
 import { parseFounderCode, type FounderCode } from '../core/identity';
@@ -16,6 +16,7 @@ import charterText from '@charter?raw';
 import { cadenceOf } from '../core/time';
 
 type Tab = 1 | 2 | 3 | 4;
+
 
 export function Setup() {
   const app = useApp();
@@ -31,16 +32,16 @@ export function Setup() {
 
   useEffect(() => {
     store.getSetup(site.site).then(saved => {
-      if (saved) return setS(saved);
+      if (saved) return setS(settleThreshold(saved));
       if (!me?.council || !me.treasury) return;
-      setS({
+      setS(settleThreshold({
         site: site.site,
         name: site.name,
         description: site.description,
         council: [{ name: me.name, key: me.pubkey, fingerprint: me.treasury.fingerprint, xpub: me.treasury.xpub }],
         founders: [],
         threshold: site.threshold,
-      });
+      }));
     });
   }, [me?.pubkey]);
 
@@ -50,7 +51,8 @@ export function Setup() {
     return () => clearInterval(id);
   }, [s?.genesisId, app.daoId]);
 
-  const save = (next: SetupState) => {
+  const save = (raw: SetupState) => {
+    const next = settleThreshold(raw);
     setS(next);
     void store.setSetup(next);
   };
@@ -76,7 +78,6 @@ export function Setup() {
   }
 
   const locked = !!s.genesisId;
-  const expected = site.council.length || 5;
   const allKeys = new Set([...s.council.map(c => c.key), ...s.founders.map(f => f.key)]);
 
   const onScanned = (code: FounderCode) => {
@@ -101,7 +102,7 @@ export function Setup() {
   let genesis: ReturnType<typeof buildGenesis> | undefined;
   let buildErr: string | undefined;
   try {
-    if (s.council.length >= s.threshold) {
+    if (s.council.length >= Math.max(2, s.threshold)) {
       genesis = buildGenesis(site, {
         name: s.name.trim(),
         description: s.description.trim(),
@@ -194,9 +195,9 @@ export function Setup() {
             <div class="row">
               <span>{t('setup.threshold')}</span>
               <span class="row" style="gap:8px">
-                <button type="button" class="btn-head" style="color:var(--ink);border-color:var(--field)" disabled={locked || s.threshold <= 1} onClick={() => save({ ...s, threshold: s.threshold - 1 })}>−</button>
-                <strong>{t('setup.of', { m: s.threshold, n: Math.max(s.council.length, expected) })}</strong>
-                <button type="button" class="btn-head" style="color:var(--ink);border-color:var(--field)" disabled={locked || s.threshold >= s.council.length} onClick={() => save({ ...s, threshold: s.threshold + 1 })}>+</button>
+                <button type="button" class="btn-head" style="color:var(--ink);border-color:var(--field)" disabled={locked || s.threshold <= 1} onClick={() => save({ ...s, threshold: s.threshold - 1, thresholdSet: true })}>−</button>
+                <strong>{t('setup.of', { m: s.threshold, n: s.council.length })}</strong>
+                <button type="button" class="btn-head" style="color:var(--ink);border-color:var(--field)" disabled={locked || s.threshold >= s.council.length} onClick={() => save({ ...s, threshold: s.threshold + 1, thresholdSet: true })}>+</button>
               </span>
             </div>
             {s.council.length > 0 && s.threshold >= s.council.length && <p class="warnbox">{t('setup.noSpare', { n: s.council.length })}</p>}
@@ -206,12 +207,12 @@ export function Setup() {
                   c={c}
                   locked={locked}
                   isMe={c.key === me.pubkey}
-                  onRemove={() => save({ ...s, council: s.council.filter((_, j) => j !== i), threshold: Math.min(s.threshold, Math.max(1, s.council.length - 1)) })}
+                  onRemove={() => save({ ...s, council: s.council.filter((_, j) => j !== i) })}
                   onReplace={(fingerprint, xpub) => save({ ...s, council: s.council.map((x, j) => (j === i ? { ...x, fingerprint, xpub } : x)) })}
                 />
               ))}
             </div>
-            {s.council.length < expected && <p class="small">{t('setup.councilNeed', { n: expected, missing: expected - s.council.length })}</p>}
+            <p class="small">{t('setup.councilSize', { n: s.council.length })}</p>
             {!locked && <button type="button" class="btn secondary" onClick={() => setScan('council')}>{t('setup.scanCouncil')}</button>}
             <button type="button" class="btn primary" onClick={() => setTab(3)}>{t('setup.nextFounders')}</button>
           </>
@@ -247,7 +248,7 @@ export function Setup() {
           <>
             <h1>{t('setup.publish')}</h1>
             {buildErr && <p class="warnbox">{buildErr}</p>}
-            {!genesis && !locked && <p class="warnbox">{t('setup.councilNeed', { n: s.threshold, missing: s.threshold - s.council.length })}</p>}
+            {!genesis && !locked && <p class="warnbox">{t('setup.councilNeed', { n: Math.max(2, s.threshold), missing: Math.max(2, s.threshold) - s.council.length })}</p>}
             {candidate ? (
               <div class="card"><h3>{t('setup.summary')}</h3><GenesisSummary g={candidate} /></div>
             ) : (

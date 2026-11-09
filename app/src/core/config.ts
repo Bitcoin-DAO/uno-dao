@@ -113,3 +113,17 @@ export function buildGenesis(site: SiteConfig, fill: {
 /** Practice votes last 10 minutes; anything under a day counts as practice. */
 export const PRACTICE_VOTE_DAYS = 10 / 1440;
 export const isPracticeVotes = (days: number) => days < 1;
+
+/** The suggested threshold for a council of n: a majority, so one key can be lost (2 of 3, 3 of 5). */
+export const suggestedThreshold = (n: number) => (n <= 2 ? Math.max(1, n) : Math.floor(n / 2) + 1);
+
+/**
+ * Founding setup: before publishing, the threshold follows the council actually added (not the
+ * site file's placeholders) unless the founder set it by hand, and never exceeds the council.
+ */
+export function settleThreshold<S extends { council: unknown[]; threshold: number; thresholdSet?: boolean; genesisId?: string }>(s: S): S {
+  if (s.genesisId) return s;
+  const n = s.council.length;
+  const threshold = s.thresholdSet ? Math.max(1, Math.min(s.threshold, n)) : suggestedThreshold(n);
+  return threshold === s.threshold ? s : { ...s, threshold };
+}

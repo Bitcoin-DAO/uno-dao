@@ -71,6 +71,14 @@ export function NewProposal() {
     ...(link.trim() ? { link: { url: link.trim() } } : {}),
   };
   const schemaErr = proposalSchemaError(content, network);
+  // Say what still stops publishing, instead of a silently disabled button.
+  const FIELD: Record<string, Parameters<typeof t>[0]> = {
+    title: 'np.titleField', summary: 'np.summary', recipient: 'np.recipient', address: type === 'close' ? 'np.destination' : 'np.address',
+    amount: 'np.amount', link: 'np.link', member_key: 'np.member', reason: 'np.reason', destination: 'np.destination',
+  };
+  const missing = schemaErr
+    ? (FIELD[schemaErr] ? t(FIELD[schemaErr]) : schemaErr)
+    : type === 'change_rules' && parsedValue === undefined ? t('np.newValue') : undefined;
   const ok = !schemaErr && !addrError && !amtError && !(type === 'change_rules' && (parsedValue === undefined || parsedValue === current || (rule === 'payoutRound' && parsedValue === cadenceOf(current))));
 
   const publish = async () => {
@@ -216,6 +224,7 @@ export function NewProposal() {
         )}
 
         <button type="button" class="btn primary" disabled={!ok || busy} onClick={publish}>{t('np.publish')}</button>
+        {!ok && missing && <p class="small">{t('np.missing', { what: missing })}</p>}
         {msg && <p class="warnbox">{msg}</p>}
       </main>
       <Footer />

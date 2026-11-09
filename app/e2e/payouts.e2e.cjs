@@ -99,9 +99,10 @@ async function signUp(page, name, council) {
   await open(f, '#/new');
   await f.getByLabel('Titolo', { exact: true }).fill('Workshop wallet');
   await f.getByLabel('Testo vincolante').fill('Rimborso del materiale per il workshop.');
-  await f.getByLabel('Nome del beneficiario').fill('@elena');
   await f.getByLabel('Indirizzo bitcoin del beneficiario').fill(RECIPIENT);
   await f.getByLabel('Importo in sats').fill('120000');
+  check(await seen(f.getByText('Per pubblicare manca ancora: Nome del beneficiario.')), 'disabled publish says what is missing');
+  await f.getByLabel('Nome del beneficiario').fill('@elena');
   await f.getByLabel(/Sono io il beneficiario/).check();
   await f.getByRole('button', { name: 'Firma e pubblica' }).click();
   await f.waitForURL(/#\/p\/[0-9a-f]{64}$/);

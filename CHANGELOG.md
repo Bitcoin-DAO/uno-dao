@@ -2,6 +2,12 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.2.3 · 9 November 2026
+
+Found during UNO DAO's first payout proposal.
+
+- **A disabled "Sign and publish" says what is missing** (for example the recipient's name), instead of staying grey without a reason.
+
 ## v0.2.2 · 9 November 2026
 
 Found during UNO DAO's founding.

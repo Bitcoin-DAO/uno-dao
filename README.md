@@ -1,6 +1,6 @@
 # UNO DAO
 
-**This is UNO DAO's own copy of [btc-dao](https://github.com/Bitcoin-DAO/btc-dao) on testnet4.** It runs btc-dao v0.3.0 (commit 80c81f7). The site is at **https://bitcoin-dao.github.io/uno-dao** and is built from `config/dao.json` by `.github/workflows/pages.yml`. Code changes are made in btc-dao and pulled in here; only `config/dao.json`, the charter (`config/charter.it.md`, `config/charter.en.md`) and this note are UNO DAO's own.
+**This is UNO DAO's own copy of [btc-dao](https://github.com/Bitcoin-DAO/btc-dao) on testnet4.** It runs btc-dao v0.3.1 (commit d13dd9c). The site is at **https://bitcoin-dao.github.io/uno-dao** and is built from `config/dao.json` by `.github/workflows/pages.yml`. Code changes are made in btc-dao and pulled in here; only `config/dao.json`, the charter (`config/charter.it.md`, `config/charter.en.md`) and this note are UNO DAO's own.
 
 **One site for practice and testnet.** UNO DAO replaces the separate practice and testnet copies (`uno-practice`, closed on 8 November 2026 after a full run, and `uno-testnet`, never founded). The founders choose **practice** (10-minute votes) at founding; the members move to **live** 3-day votes by a rule-change vote, and later from phone test keys to SeedSigners by a council change. The DAO, its members and its record carry on throughout. The mainnet DAO that follows is a separate site.
 

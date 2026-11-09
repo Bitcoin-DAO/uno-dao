@@ -2,6 +2,12 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.2.2 · 9 November 2026
+
+Found during UNO DAO's founding.
+
+- **A missing sign-up passkey no longer blocks the last step.** If the phone says it has no passkey for the site when protecting the key (the passkey was deleted, or saved to another account), the app offers **Make a new passkey**: the key is still on the phone, in the sign-up, so it is protected with a new passkey instead. Applies to founders, new members and replaced keys.
+
 ## v0.2.1 · 9 November 2026
 
 Found at the start of UNO DAO's 2-of-3 run.

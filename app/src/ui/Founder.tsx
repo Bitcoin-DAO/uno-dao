@@ -1,6 +1,6 @@
 // Founder sign-up (protocol 3.5): name, key and passkey, show the code, wait, approve (council), protect.
 import { useEffect, useState } from 'preact/hooks';
-import { completeFounding, passkeyName, publishSigned, setState, sync, useApp } from '../app';
+import { passkeyName, publishSigned, setState, sync, useApp } from '../app';
 import { t } from '../i18n';
 import { newSecret, newTestTreasuryKey, pubkeyOf, type FounderCode } from '../core/identity';
 import { KIND, sign, template } from '../core/events';
@@ -8,7 +8,7 @@ import type { GenesisCandidate } from '../core/state';
 import { shortCode, formatShortCode } from '../core/shortcode';
 import { createPasskey, passkeysAvailable } from '../lib/passkey';
 import { store, type PendingFounder } from '../lib/store';
-import { Header, PrintCard, Qr, ShortCode, Steps, errText, go, askConfirm } from './parts';
+import { Header, ProtectKey, PrintCard, Qr, ShortCode, Steps, errText, go, askConfirm } from './parts';
 import { Candidate } from './Candidate';
 
 export function Founder() {
@@ -231,18 +231,6 @@ function Wait({ pending }: { pending: PendingFounder }) {
     }
   };
 
-  const protect = async () => {
-    setErr(undefined);
-    setBusy(true);
-    try {
-      await completeFounding();
-    } catch (e) {
-      setErr(errText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const restart = () => restartSignup(site.site);
 
   return (
@@ -253,8 +241,7 @@ function Wait({ pending }: { pending: PendingFounder }) {
         {founded && listed ? (
           <>
             <h1>{t('fs.foundedTitle', { dao })}</h1>
-            <p class="lead">{t('fs.protectText')}</p>
-            <button type="button" class="btn primary" disabled={busy} onClick={protect}>{t('fs.protect')}</button>
+            <ProtectKey />
           </>
         ) : (
           <>

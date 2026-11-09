@@ -277,12 +277,25 @@ export async function publishSigned(event: Event): Promise<PublishResult> {
 
 /** Once this device's new key is on the roster (founder, new member, or replaced key): protect it with
  * the passkey and publish dao.keywrap (protocol 3.5 step 5, 1.5). */
-export async function completeFounding(): Promise<void> {
-  const { pending, daoId, site } = state;
+export async function completeFounding(freshPasskey = false): Promise<void> {
+  let { pending } = state;
+  const { daoId, site } = state;
   if (!pending || !daoId || !site) throw new Error('no-pending');
+  let freshPrf: Uint8Array | undefined;
+  if (freshPasskey) {
+    // The sign-up passkey is missing on this phone (deleted, or saved to another account): the key itself is
+    // still here, in the pending sign-up, so protect it with a new passkey instead.
+    const created = await createPasskey({ passkeyDomain: site.passkeyDomain, rpName: site.name, userName: passkeyName(pending.name), salt: prfSalt(daoId) });
+    freshPrf = created.prf;
+    pending = { ...pending, credId: created.credId, prfSupported: created.prfSupported || !!created.prf };
+    await store.setPending(pending);
+    derive(state.events, { pending });
+  }
   let identity: LocalIdentity = { daoId, pubkey: pending.pubkey, credId: pending.credId, treasury: pending.treasury };
   if (pending.credId && pending.prfSupported) {
-    const a = await getPrf({ passkeyDomain: site.passkeyDomain, salt: prfSalt(daoId), credId: pending.credId });
+    const a = freshPrf
+      ? { prf: freshPrf, credTag: credTagOf(pending.credId) }
+      : await getPrf({ passkeyDomain: site.passkeyDomain, salt: prfSalt(daoId), credId: pending.credId });
     if (!a.prf) throw new Error('no-prf');
     const wrapped = wrapSecret(a.prf, pending.secret);
     identity = { ...identity, wrapped };

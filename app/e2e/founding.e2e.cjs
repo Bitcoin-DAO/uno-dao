@@ -20,12 +20,12 @@ async function phone(browser, label) {
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('WebAuthn.enable');
-  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
     options: { protocol: 'ctap2', ctap2Version: 'ctap2_1', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true, hasPrf: true },
   });
   page.on('pageerror', e => console.log(`  [${label}] pageerror`, e.message));
   page.on('console', m => m.type() === 'error' && !/WebSocket|ERR_CONNECTION/.test(m.text()) && console.log(`  [${label}] console`, m.text()));
-  return { ctx, page, label };
+  return { ctx, page, label, cdp, authenticatorId };
 }
 
 async function signUp(p, name, council) {
@@ -124,10 +124,16 @@ async function decodeQrIn(page, selector) {
   await council[2].page.getByRole('button', { name: 'Approva e firma' }).click();
 
   log('Founded: everyone protects their key with the passkey');
+  // The last founder's sign-up passkey has gone from the phone (deleted, or saved to another account).
+  await founders[1].cdp.send('WebAuthn.clearCredentials', { authenticatorId: founders[1].authenticatorId });
   for (const p of [...council, ...founders]) {
     await p.page.goto(URL0 + '#/founder');
     await p.page.reload();
     await p.page.getByRole('button', { name: 'Proteggi la chiave e continua' }).click({ timeout: 20000 });
+    if (p === founders[1]) {
+      await p.page.getByRole('button', { name: 'Crea una nuova passkey' }).click({ timeout: 20000 });
+      check(true, 'missing sign-up passkey: a new one is offered');
+    }
     await p.page.getByText('Stampa la tua tessera d\'identità').waitFor({ timeout: 20000 });
   }
   check(true, 'all 7 founders protected their keys');

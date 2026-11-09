@@ -1,6 +1,6 @@
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { setLang, useApp } from '../app';
+import { completeFounding, setLang, useApp } from '../app';
 import { t } from '../i18n';
 import { qrMatrix, startScanner, type Scanner } from '../lib/qr';
 import { rpId } from '../lib/passkey';
@@ -246,6 +246,42 @@ export function CouncilOnly() {
         )}
       </main>
       <Footer />
+    </>
+  );
+}
+
+/**
+ * The last step of a sign-up, key replacement or founding: protect the key with the passkey made at sign-up.
+ * If that passkey cannot be used (the phone says it has none: deleted, or saved to another account), the key
+ * is still on this phone, so it can be protected with a new passkey instead.
+ */
+export function ProtectKey() {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const [failed, setFailed] = useState(false);
+  const run = async (fresh: boolean) => {
+    setErr(undefined);
+    setBusy(true);
+    try {
+      await completeFounding(fresh);
+    } catch (e) {
+      setErr(errText(e));
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <p class="lead">{t('fs.protectText')}</p>
+      <button type="button" class="btn primary" disabled={busy} onClick={() => run(false)}>{t('fs.protect')}</button>
+      {err && <p class="warnbox">{err}</p>}
+      {failed && (
+        <div class="card">
+          <p class="small">{t('fs.noPasskey')}</p>
+          <button type="button" class="btn secondary" disabled={busy} onClick={() => run(true)}>{t('fs.newPasskey')}</button>
+        </div>
+      )}
     </>
   );
 }

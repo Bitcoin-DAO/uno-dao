@@ -1,6 +1,6 @@
 // Joining after the founding (role "candidate") and a new key after losing everything (role "rekey").
 import { useEffect, useState } from 'preact/hooks';
-import { completeFounding, passkeyName, setState, sync, useApp } from '../app';
+import { passkeyName, setState, sync, useApp } from '../app';
 import { t } from '../i18n';
 import { newSecret, pubkeyOf, type FounderCode } from '../core/identity';
 import { proposalLabel } from '../core/state';
@@ -8,7 +8,7 @@ import { formatShortCode, shortCode } from '../core/shortcode';
 import { parseJson } from '../core/util';
 import { createPasskey, passkeysAvailable } from '../lib/passkey';
 import { store, type PendingFounder } from '../lib/store';
-import { Footer, Header, PrintCard, Qr, ShortCode, errText, go, askConfirm } from './parts';
+import { Footer, Header, ProtectKey, PrintCard, Qr, ShortCode, errText, go, askConfirm } from './parts';
 import { statusText } from './Proposals';
 
 export function Candidate({ role }: { role: 'candidate' | 'rekey' }) {
@@ -46,17 +46,6 @@ export function Candidate({ role }: { role: 'candidate' | 'rekey' }) {
   const s = app.dao!;
   const person = s.personOf(pending.pubkey);
   const listed = s.members.some(m => m.person === person && (role === 'candidate' || m.key === pending.pubkey));
-  const protect = async () => {
-    setMsg(undefined);
-    setBusy(true);
-    try {
-      await completeFounding();
-    } catch (e) {
-      setMsg(errText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
   const restart = async () => {
     if (!(await askConfirm(t('fs.restartConfirm'), t('fs.restart'), true))) return;
     await store.clearPending(app.site!.site);
@@ -76,8 +65,7 @@ export function Candidate({ role }: { role: 'candidate' | 'rekey' }) {
         {listed ? (
           <>
             <h1>{role === 'candidate' ? t('cand.member', { dao: app.site!.name }) : t('lost.done')}</h1>
-            <p class="lead">{t('fs.protectText')}</p>
-            <button type="button" class="btn primary" disabled={busy} onClick={protect}>{t('fs.protect')}</button>
+            <ProtectKey />
           </>
         ) : (
           <>

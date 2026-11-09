@@ -2,6 +2,13 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.2.5 · 9 November 2026
+
+Found during UNO DAO's rules change.
+
+- **A passed rules or membership change says whether it is in force.** It takes effect only when the council signs the new version; the proposal now says "Approved, but not in force yet", with a link to the Council page, and later "In force ✓" with the version.
+- **The software version shown on the Rules page is right again** (it still said 0.1.5).
+
 ## v0.2.4 · 9 November 2026
 
 Found during UNO DAO's first payout round.

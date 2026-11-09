@@ -199,6 +199,7 @@ async function councilAction(page, buttonName) {
   await shot(f1, '06-passed');
   await open(f1, `#/p/${rulesId}`);
   check(await f1.getByText('Approvata ✓').first().waitFor({ timeout: 30000 }).then(() => true, () => false), 'rules change passed (two-thirds)');
+  check(await seen(f1.getByText(/Approvata, ma non ancora in vigore/)), 'passed rules change says it waits for the council');
 
   log('Council: member list version 2 (adds @nina), rules version 2');
   await councilAction(a, 'Pubblica la versione 2');
@@ -210,6 +211,8 @@ async function councilAction(page, buttonName) {
   await councilAction(C.page, 'Approva la versione 2 delle regole');
   await open(f1, '#/rules');
   check(await seen(f1.getByText('1/2 dei membri')), 'quorum is now 1/2');
+  await open(f1, `#/p/${rulesId}`);
+  check(await seen(f1.getByText('In vigore ✓ (regole, versione 2).')), 'rules change shows it is in force');
 
   log('@nina protects her key and is a member');
   await open(n, '#/candidate');

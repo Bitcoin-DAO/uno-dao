@@ -171,6 +171,7 @@ export function ProposalDetail({ id }: { id: string }) {
           {c.link && <a href={c.link.url} target="_blank" rel="noopener noreferrer">{t('pd.link')} ↗</a>}
           <Payload p={p} />
           {p.status === 'passed' && <PaymentLine id={p.event.id} />}
+          {p.status === 'passed' && <InForceLine id={p.event.id} />}
         </section>
 
         {p.addresses.length > 0 && (
@@ -338,4 +339,24 @@ export function ruleLabel(key: string) {
     case 'feePolicy': return t('fee.label');
     default: return key;
   }
+}
+
+/**
+ * A passed rules or membership change is in force only once the council signs the new version
+ * (rules or member list). Say so on the proposal, with the way to the Council page.
+ */
+function InForceLine({ id }: { id: string }) {
+  const s = useApp().dao!;
+  const settingsV = s.settings.findIndex(v => v.content.basis?.includes(id));
+  const rosterV = s.rosters.findIndex(v => v.content.basis?.includes(id));
+  if (settingsV >= 0) return <p class="ok">{t('pd.inForceRules', { v: settingsV + 1 })}</p>;
+  if (rosterV >= 0) return <p class="ok">{t('pd.inForceRoster', { v: rosterV + 1 })}</p>;
+  if (s.pendingSettings.includes(id) || s.pendingRoster.includes(id)) {
+    return (
+      <p class="warn">
+        {t('pd.awaitCouncil', { m: s.settingsAt(s.now).content.threshold })} <a href="#/council">{t('pd.toCouncil')}</a>
+      </p>
+    );
+  }
+  return null;
 }

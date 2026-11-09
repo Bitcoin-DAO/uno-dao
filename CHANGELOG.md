@@ -2,6 +2,12 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.2.1 · 9 November 2026
+
+Found at the start of UNO DAO's 2-of-3 run.
+
+- **Founding: the council size is the council you add.** The setup page showed "3 of 5" from the site file's five placeholder seats, though the council is whoever is added on the page. It now shows the real size, and the signatures needed follow it (2 of 3, 3 of 5) until changed by hand with − and +. At least 2 council members are needed to publish.
+
 ## v0.2.0 · 8 November 2026
 
 The findings from UNO's practice run (6–8 November 2026, `docs/runs/2026-11-uno-practice.md`): 25 of 28 built, the rest noted in `MAINNET-READINESS.md`.

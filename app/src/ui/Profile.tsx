@@ -96,6 +96,12 @@ export function Profile() {
             <label class="field">{t('tk.enter')}<textarea class="mono" autoComplete="off" spellcheck={false} autoCapitalize="none" value={tkWords} onInput={e => setTkWords((e.target as HTMLTextAreaElement).value)} /></label>
             <button type="button" class="btn primary" disabled={busy || tkWords.trim().split(/\s+/).length !== 12} onClick={enterWords}>{t('tk.save')}</button>
             {tkMsg && <p class="warnbox">{tkMsg}</p>}
+            {s && (() => {
+              // Words lost too: say what that means for the treasury, and what fixes it.
+              const set = s.settingsAt(s.now).content;
+              const others = set.council.length - 1;
+              return <p class="small">{t(others >= set.threshold ? 'tk.lostOk' : 'tk.lostLocked', { m: set.threshold, n: set.council.length, others })}</p>;
+            })()}
           </div>
         )}
         {me.council && tk && (

@@ -160,6 +160,7 @@ async function signUp(page, name, council) {
   check(await seen(mb.getByRole('link', { name: 'Rimetti le 12 parole →' })), 'round page says the key is missing, with a link');
   await open(mb, '#/profile');
   const box = mb.getByLabel(/Scrivi le 12 parole/);
+  check(await seen(mb.getByText(/Hai perso anche le parole\? .*gli altri 2 membri del Consiglio possono darle/)), 'lost words: the treasury still works with the others, council change needed');
   const wrong = 'abandon '.repeat(11) + 'about';
   await box.fill(wrong);
   await mb.getByRole('button', { name: 'Rimetti la chiave su questo telefono' }).click();

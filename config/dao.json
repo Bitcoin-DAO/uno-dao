@@ -9,6 +9,7 @@
   ],
   "network": "testnet4",
   "site": "https://bitcoin-dao.github.io/uno-dao",
+  "daoId": "02d14b16bd45aa0ee6acd6eaf4c6e4b5360c63dc35ba3bbda7e35989647551eb",
   "passkeyDomain": "bitcoin-dao.github.io",
   "council": [
     {

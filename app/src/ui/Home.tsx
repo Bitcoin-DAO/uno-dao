@@ -66,9 +66,9 @@ export function Home() {
           </div>
         </section>
 
-        {!tr && <Donate address={firstAddress(cfg.descriptor, cfg.network)} />}
+        {!app.dao!.closed && !tr && <Donate address={firstAddress(cfg.descriptor, cfg.network)} />}
 
-        {tr && (atCap ? (
+        {!app.dao!.closed && tr && (atCap ? (
           <section class="card">
             <h2>{t('home.donate')}</h2>
             <p class="warn">{tr.balance > cap ? t('home.overCap', { cap: fmtSats(cap) }) : t('home.capReached', { cap: fmtSats(cap) })}</p>
@@ -83,7 +83,6 @@ export function Home() {
           </a>
         )}
 
-        {app.dao!.closed && <p class="warnbox">{t('home.closed', { dao: app.site!.name })}</p>}
         {!app.dao!.closed && (round ? (
           <a class="card tint" style="text-decoration:none;color:var(--teal-ink);gap:4px" href={`#/round/${round.event.id}`}>
             <span class="small">{t('home.nextRound')}</span>

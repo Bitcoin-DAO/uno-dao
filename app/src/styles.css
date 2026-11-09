@@ -37,6 +37,8 @@ button { font-family: inherit; }
 .top .actions { display: flex; gap: 8px; align-items: center; }
 .btn-head { min-height: 44px; padding: 0 12px; background: transparent; border: 1px solid var(--head-line); border-radius: 8px; color: #fff; font-size: 13px; cursor: pointer; }
 .btn-head.solid { background: #fff; color: var(--ink); border-color: #fff; font-weight: 600; font-size: 15px; padding: 0 16px; }
+.closedbar { background: var(--teal-bg); color: var(--teal-ink); border-bottom: 2px solid var(--teal); font-size: 16px; line-height: 1.45; padding: 14px 20px; }
+.closedbar strong { display: block; font-size: 20px; margin-bottom: 2px; }
 .banner { background: var(--warn-bg); color: var(--warn-ink); font-size: 12px; padding: 8px 20px; }
 .tabs { display: flex; background: #fff; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tabs a, .tabs button { flex: 1 0 auto; padding: 14px 12px; font-size: 14px; color: var(--muted); text-decoration: none; border: 0; background: none; border-bottom: 3px solid transparent; white-space: nowrap; cursor: pointer; }

@@ -53,6 +53,9 @@ export function Header(props: { sub?: string; tabs?: ComponentChildren }) {
       ) : (
         <div class="banner">{t('banner.trial')}</div>
       ))}
+      {app.dao?.closed && (
+        <div class="closedbar"><strong>{t('closed.title', { dao: site!.name })}</strong> {t('closed.text')}</div>
+      )}
       {app.dao?.conflict && <div class="banner">{t('banner.conflict')}</div>}
       {dev && <div class="banner">{t('banner.devPasskey', { host: location.hostname, domain: site!.passkeyDomain })}</div>}
       {props.tabs}

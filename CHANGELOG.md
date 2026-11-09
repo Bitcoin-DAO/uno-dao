@@ -2,6 +2,13 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.2.7 · 9 November 2026
+
+Found when UNO DAO closed.
+
+- **A closed DAO says so at the top of every page**, larger, under the header and the practice-mode banner, instead of a small box on the home page.
+- **A closed DAO no longer invites funding**: the "Fund the treasury" card is gone once it is closed.
+
 ## v0.2.6 · 9 November 2026
 
 Found when a council member of UNO DAO lost both the phone's data and the treasury key's 12 words.

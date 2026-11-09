@@ -34,6 +34,15 @@ export function NewProposal() {
   const [msg, setMsg] = useState<string>();
   const [busy, setBusy] = useState(false);
 
+  if (s.closed) {
+    return (
+      <>
+        <Header />
+        <main><p class="lead">{t('closed.text')}</p></main>
+        <Footer />
+      </>
+    );
+  }
   if (!app.me || !app.secret) {
     return (
       <>

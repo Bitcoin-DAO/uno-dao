@@ -72,7 +72,7 @@ export function Proposals() {
       <main>
         <div class="row">
           <h1>{t('props.title')}</h1>
-          {app.me && app.secret && <button type="button" class="btn dark" onClick={() => go('/new')}>{t('props.new')}</button>}
+          {!app.dao!.closed && app.me && app.secret && <button type="button" class="btn dark" onClick={() => go('/new')}>{t('props.new')}</button>}
         </div>
         {list.length === 0 && <p class="small">{t('props.none')}</p>}
         {list.map(p => <ProposalCard p={p} />)}

@@ -97,12 +97,16 @@ export function Home() {
           </div>
         ))}
 
-        <div class="row">
-          <h2>{t('home.open')}</h2>
-          <a href="#/proposals" style="font-weight:600;text-decoration:none">{t('home.all')}</a>
-        </div>
-        {open.length === 0 ? <p class="small">{t('home.noOpen')}</p> : open.map(p => <ProposalCard p={p} />)}
-        {app.me && app.secret && <button type="button" class="btn secondary" onClick={() => go('/new')}>{t('props.new')}</button>}
+        {app.dao!.closed ? (
+          <a href="#/proposals" style="font-weight:600;text-decoration:none">{t('home.allProposals')}</a>
+        ) : (
+          <div class="row">
+            <h2>{t('home.open')}</h2>
+            <a href="#/proposals" style="font-weight:600;text-decoration:none">{t('home.all')}</a>
+          </div>
+        )}
+        {!app.dao!.closed && (open.length === 0 ? <p class="small">{t('home.noOpen')}</p> : open.map(p => <ProposalCard p={p} />))}
+        {!app.dao!.closed && app.me && app.secret && <button type="button" class="btn secondary" onClick={() => go('/new')}>{t('props.new')}</button>}
 
         {tr && (
           <section class="card">

@@ -2,6 +2,10 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.2.8 · 9 November 2026
+
+- **A closed DAO offers no new proposals.** The home page and the Proposals page no longer show "New proposal" or an empty "Open proposals" section once the DAO is closed; the home page links to the full record instead.
+
 ## v0.2.7 · 9 November 2026
 
 Found when UNO DAO closed.

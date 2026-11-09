@@ -1,5 +1,6 @@
 // End-to-end: founding meeting with 5 council phones and 2 founders, then treasury, card print, restore, sign-in.
 const { chromium } = require('playwright');
+const { writeDownWords } = require('./words.cjs');
 const { PNG } = require('pngjs');
 const jsQR = require('jsqr');
 const fs = require('fs');
@@ -28,7 +29,7 @@ async function phone(browser, label) {
   return { ctx, page, label, cdp, authenticatorId };
 }
 
-async function signUp(p, name, council) {
+async function signUp(p, name, council, wrongWords = false) {
   const { page } = p;
   await page.goto(URL0 + '#/founder');
   await page.getByText('Iscrizione dei fondatori').first().waitFor();
@@ -37,6 +38,7 @@ async function signUp(p, name, council) {
   await page.getByLabel(/Ho almeno 18 anni/).check();
   await page.getByRole('button', { name: 'Avanti' }).click();
   await page.getByRole('button', { name: 'Crea con impronta o volto' }).click();
+  if (council) await writeDownWords(page, { tryWrong: wrongWords });
   await page.getByText('Condividi il tuo codice').waitFor();
   await page.getByRole('button', { name: 'Copia il codice' }).click();
   const code = await page.evaluate(() => navigator.clipboard.readText());
@@ -74,7 +76,7 @@ async function decodeQrIn(page, selector) {
   check(true, 'founding mode shown');
 
   log('Founder sign-up on every phone');
-  for (const c of council) Object.assign(c, await signUp(c, c.name, true));
+  for (const c of council) Object.assign(c, await signUp(c, c.name, true, c === council[1]));
   for (const f of founders) Object.assign(f, await signUp(f, f.name, false));
   await council[0].page.screenshot({ path: `${SHOTS}/02-founder-code.png`, fullPage: true });
   check(JSON.parse(council[1].code).council?.xpub?.startsWith('tpub'), 'council code carries a tpub');

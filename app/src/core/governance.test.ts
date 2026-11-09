@@ -536,3 +536,90 @@ describe('weekly rounds and standing payout addresses (4.2, 6.1)', () => {
     expect(s.rounds.find(r => r.event.id === late.id)?.errors.join('; ')).toContain('not confirmed by its recipient');
   });
 });
+
+describe('treasury key status (5.5)', () => {
+  it('lists a council key its holder reported lost, until the holder reports it found', () => {
+    const d = dao();
+    const fp = treasuryKeyFromMnemonic(MNEMONICS[2], 'testnet4').fingerprint.toLowerCase();
+    d.ev(KIND.keystatus, { fingerprint: fp, state: 'lost' }, d.c[2], d.T);
+    let s = d.state(d.T + 10);
+    expect(s.lostKeys).toEqual([{ person: s.personOf(pubkeyOf(d.c[2])), fingerprint: fp, at: d.T }]);
+    d.ev(KIND.keystatus, { fingerprint: fp, state: 'found' }, d.c[2], d.T + 20);
+    s = d.state(d.T + 30);
+    expect(s.lostKeys).toEqual([]);
+  });
+
+  it('ignores notices about someone else\'s key, from non-council members, or malformed', () => {
+    const d = dao();
+    const fp2 = treasuryKeyFromMnemonic(MNEMONICS[2], 'testnet4').fingerprint.toLowerCase();
+    d.ev(KIND.keystatus, { fingerprint: fp2, state: 'lost' }, d.c[1], d.T); // c1 about c2's key
+    d.ev(KIND.keystatus, { fingerprint: fp2, state: 'lost' }, d.f[0], d.T); // a founder, not council
+    d.ev(KIND.keystatus, { fingerprint: fp2, state: 'gone' }, d.c[2], d.T); // unknown state
+    const s = d.state(d.T + 10);
+    expect(s.lostKeys).toEqual([]);
+    expect(s.rejected.filter(r => r.reason.startsWith('keystatus')).length).toBe(3);
+  });
+});
+
+describe('discussion (4.5)', () => {
+  const v = (n: number, extra: Record<string, unknown> = {}) => ({ version: n, title: `Volantini v${n}`, ...extra });
+
+  it('keeps versions from the author only, in order, and posts from members only', () => {
+    const d = dao();
+    const v1 = d.ev(KIND.draft, v(1), d.f[0], d.T);
+    d.ev(KIND.draft, v(2, { summary: '500 volantini' }), d.f[0], d.T + 10, [['e', v1.id]]);
+    d.ev(KIND.draft, v(3), d.f[1], d.T + 20, [['e', v1.id]]); // not the author
+    d.ev(KIND.draft, v(5), d.f[0], d.T + 30, [['e', v1.id]]); // out of order
+    d.ev(KIND.post, { text: 'Meglio A5' }, d.c[1], d.T + 40, [['e', v1.id]]);
+    d.ev(KIND.post, { text: 'spam' }, newSecret(), d.T + 50, [['e', v1.id]]); // not a member
+    d.ev(KIND.post, { text: '' }, d.f[2], d.T + 60, [['e', v1.id]]); // empty
+    const s = d.state(d.T + 100);
+    const th = s.discussion.byId.get(v1.id)!;
+    expect(th.versions.map(x => x.n)).toEqual([1, 2]);
+    expect(th.title).toBe('Volantini v2');
+    expect(th.posts.map(p => parseJson<any>(p.content).text)).toEqual(['Meglio A5']);
+    expect(th.status).toBe('open');
+    expect(th.lastActivity).toBe(d.T + 40);
+  });
+
+  it('a submission freezes the versions; the thread carries on through the vote', () => {
+    const d = dao();
+    const v1 = d.ev(KIND.draft, v(1, { type: 'statement', summary: 'S' }), d.f[0], d.T);
+    const p = d.propose(d.f[0], { type: 'statement', title: 'Volantini v1', summary: 'S', draft: { id: v1.id, version: 1 } }, d.T + 10);
+    d.ev(KIND.draft, v(2), d.f[0], d.T + 20, [['e', v1.id]]); // after submission: frozen
+    d.ev(KIND.post, { text: 'Voto sì' }, d.f[1], d.T + 30, [['e', p.id]]); // to the proposal: lands in the draft's thread
+    const s = d.state(d.T + 100);
+    const th = s.discussion.byId.get(v1.id)!;
+    expect(th.status).toBe('submitted');
+    expect(th.submitted).toEqual({ version: 1, matches: true });
+    expect(th.versions.length).toBe(1);
+    expect(th.posts.length).toBe(1);
+    expect(s.discussion.ofProposal.get(p.id)).toBe(th);
+    expect(s.discussion.byId.has(p.id)).toBe(false);
+    expect(s.rejected.some(r => r.reason === 'draft: frozen, the proposal is open')).toBe(true);
+  });
+
+  it('says when a proposal differs from the version it names; others cannot submit or withdraw a draft', () => {
+    const d = dao();
+    const v1 = d.ev(KIND.draft, v(1, { type: 'statement', summary: 'S' }), d.f[0], d.T);
+    const other = d.propose(d.f[1], { type: 'statement', title: 'Volantini v1', summary: 'S', draft: { id: v1.id, version: 1 } }, d.T + 5);
+    d.ev(KIND.withdraw, {}, d.f[1], d.T + 6, [['e', v1.id]]); // not the author
+    let s = d.state(d.T + 10);
+    expect(s.discussion.byId.get(v1.id)!.status).toBe('open');
+    expect(s.discussion.ofProposal.get(other.id)!.id).toBe(other.id); // its own thread
+    const p = d.propose(d.f[0], { type: 'statement', title: 'Changed', summary: 'S', draft: { id: v1.id, version: 1 } }, d.T + 20);
+    s = d.state(d.T + 30);
+    expect(s.discussion.ofProposal.get(p.id)!.submitted).toEqual({ version: 1, matches: false });
+  });
+
+  it('withdrawn drafts stay visible, closed to new versions', () => {
+    const d = dao();
+    const v1 = d.ev(KIND.draft, v(1), d.f[0], d.T);
+    d.ev(KIND.withdraw, {}, d.f[0], d.T + 10, [['e', v1.id]]);
+    d.ev(KIND.draft, v(2), d.f[0], d.T + 20, [['e', v1.id]]);
+    const s = d.state(d.T + 30);
+    const th = s.discussion.byId.get(v1.id)!;
+    expect(th.status).toBe('withdrawn');
+    expect(th.versions.length).toBe(1);
+  });
+});

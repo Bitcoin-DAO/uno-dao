@@ -2,6 +2,7 @@
 // Proposals, a recipient confirmation, a new member (sponsor + council check + vote + roster),
 // a rules change, leaving, and a lost key replaced by the council.
 const { chromium } = require('playwright');
+const { writeDownWords } = require('./words.cjs');
 const fs = require('fs');
 
 const URL0 = 'http://localhost:4173/';
@@ -33,13 +34,14 @@ async function phone(browser, label) {
 const seen = loc => loc.first().waitFor({ timeout: 20000 }).then(() => true, () => false);
 const copied = page => page.evaluate(() => navigator.clipboard.readText());
 
-async function signUp(page, name, council) {
+async function signUp(page, name, council, wrongWords = false) {
   await page.goto(URL0 + '#/founder');
   await page.getByRole('textbox').fill(name);
   if (council) await page.getByLabel('Chiedo un posto nel Consiglio').check();
   await page.getByLabel(/Ho almeno 18 anni/).check();
   await page.getByRole('button', { name: 'Avanti' }).click();
   await page.getByRole('button', { name: 'Crea con impronta o volto' }).click();
+  if (council) await writeDownWords(page, { tryWrong: wrongWords });
   await page.getByRole('button', { name: 'Copia il codice' }).click();
   return copied(page);
 }

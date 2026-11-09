@@ -135,6 +135,10 @@ export function Council() {
         {app.identity && !app.identity.treasury && app.site!.network !== 'mainnet' && (
           <p class="warnbox">{t('tk.missing')} <a href="#/profile">{t('tk.link')}</a></p>
         )}
+        {app.identity?.treasury && !app.identity.wordsChecked && app.site!.network !== 'mainnet' && (
+          <p class="warnbox">{t('words.needed')} <a href="#/profile">{t('words.toProfile')}</a></p>
+        )}
+        <LostKeys />
         {s.rosterDisputed && <p class="warnbox">{t('cn.disputed')}</p>}
 
         {(waitingPay > 0 || openR) && (
@@ -246,4 +250,16 @@ export function Council() {
       <Footer />
     </>
   );
+}
+
+/** Treasury keys their holders reported lost: how many are left, and whether a spare remains. */
+export function LostKeys() {
+  const s = useApp().dao!;
+  const nameOf = useNameOf();
+  if (!s.lostKeys.length) return null;
+  const set = s.settingsAt(s.now).content;
+  const left = set.council.length - s.lostKeys.length;
+  const names = s.lostKeys.map(k => nameOf(s.keyOf(k.person))).join(', ');
+  const key = left > set.threshold ? 'cn.lostSpare' : left === set.threshold ? 'cn.lostNoSpare' : 'cn.lostStuck';
+  return <p class="warnbox">{t(key, { names, left, n: set.council.length, m: set.threshold })}</p>;
 }

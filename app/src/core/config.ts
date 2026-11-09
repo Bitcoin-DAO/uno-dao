@@ -63,6 +63,12 @@ export interface DaoConfig {
   rules: Rules;
   /** Confirmations a round's transaction needs before the council publishes its receipt (3 if unset), so a reorg cannot leave a false receipt. */
   receiptConfirmations?: number;
+  /**
+   * Web pages where anyone can paste a signed transaction to broadcast it by hand ("Send it by hand").
+   * Unset: each chain source's own page. A page here is never read by the app, so a service that only
+   * works in a browser (no API access from web pages) can still be offered.
+   */
+  broadcastPages?: string[];
   /** Practice and testnet stages: the organisation's testnet4 wallet that funds them and gets the coins back at closing. */
   testnetTreasury?: { name: string; address: string };
   branding?: { logo: string | null; colours?: Record<string, string> };

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { broadcast, explorerOf, feePolicyOf, loadTreasury, pushPageOf, sourceLabel, sourceOf, suggestFee, txSeenBy, txStatus, type Fetcher } from './chain';
+import { broadcast, sendToMissing, explorerOf, feePolicyOf, loadTreasury, pushPageOf, sourceLabel, sourceOf, suggestFee, txSeenBy, txStatus, type Fetcher } from './chain';
 import { parseDescriptor, treasuryAddress } from './descriptor';
 
 // UNO's practice treasury (2 of 2), as founded on 6 November 2026.
@@ -165,6 +165,21 @@ describe('broadcast', () => {
       behind: ['bb.example: accepted', 'es.example: min relay fee not met'],
     });
     expect(seen.sort()).toEqual([`${BB}/api/v2/sendtx/`, 'https://esplora.example/api/tx'].sort());
+  });
+
+  it('sends again only to the sources that do not know an unconfirmed transaction', async () => {
+    const posted: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => { posted.push(url); return answer(txid); });
+    const knows = (api: string): Fetcher => async url => (url.startsWith(api) ? { confirmed: false } : Promise.reject(new Error('404')));
+    const A = 'https://a.example/api', B = 'https://b.example/api';
+    expect(await sendToMissing([A, B], '00', txid, knows(A))).toEqual([B]);
+    expect(posted).toEqual([`${B}/tx`]);
+    posted.length = 0;
+    const none: Fetcher = async () => Promise.reject(new Error('404'));
+    expect(await sendToMissing([A, B], '00', txid, none)).toEqual([]); // nobody has it: left to the ordinary rebroadcast
+    const all: Fetcher = async () => ({ confirmed: false });
+    expect(await sendToMissing([A, B], '00', txid, all)).toEqual([]);
+    expect(posted).toEqual([]);
   });
 
   it('counts "already known" as accepted', async () => {

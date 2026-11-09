@@ -16,6 +16,8 @@ export interface PendingFounder {
   prfSupported: boolean;
   council: boolean;
   treasury?: TestTreasuryKey;
+  /** When the council member showed the trial treasury key's 12 words were written down (typed some back). */
+  wordsChecked?: number;
   createdAt: number;
 }
 
@@ -27,6 +29,8 @@ export interface LocalIdentity {
   wrapped?: Wrapped; // passkey-protected copy
   plain?: string; // only where the phone has no PRF (protocol 1.5)
   treasury?: TestTreasuryKey; // council test key, trial only
+  /** When the 12 words of `treasury` were shown to be written down; unset: signing waits for it. */
+  wordsChecked?: number;
 }
 
 export interface SetupFounder {

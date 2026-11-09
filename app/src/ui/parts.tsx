@@ -1,6 +1,7 @@
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { completeFounding, setLang, useApp } from '../app';
+import { newCount } from './Discussion';
 import { t } from '../i18n';
 import { qrMatrix, startScanner, type Scanner } from '../lib/qr';
 import { rpId } from '../lib/passkey';
@@ -66,10 +67,13 @@ export function Header(props: { sub?: string; tabs?: ComponentChildren }) {
 export function Footer() {
   const app = useApp();
   if (!app.daoId) return null;
+  const s = app.dao;
+  const unread = s ? s.discussion.threads.filter(th => newCount(th, app.daoId!, app.me?.person, s.personOf) > 0).length : 0;
   return (
     <nav class="footer">
       <a href="#/">{t('nav.home')}</a>
       <a href="#/proposals">{t('nav.proposals')}</a>
+      <a href="#/discussion">{t('nav.discussion')}{unread > 0 && <span class="dot" aria-label={t('ds.unread', { n: unread })} />}</a>
       <a href="#/members">{t('nav.members')}</a>
       <a href="#/rules">{t('nav.rules')}</a>
       {app.isCouncil && app.secret && <a href="#/council">{t('nav.council')}</a>}
@@ -286,5 +290,57 @@ export function ProtectKey() {
         </div>
       )}
     </>
+  );
+}
+
+/** Three different word positions (1–12), in order, so the check asks for words from the whole list. */
+export function checkPositions(rand: () => number = Math.random): number[] {
+  const picks = new Set<number>();
+  while (picks.size < 3) picks.add(1 + Math.floor(rand() * 12));
+  return [...picks].sort((a, b) => a - b);
+}
+
+/**
+ * Trial stages: the council member writes down the treasury key's 12 words and types three of them back.
+ * The words are the only copy of the key outside the phone; the identity card does not carry it
+ * (UNO DAO, 9 Nov 2026: a council member's key was lost with the phone's data).
+ */
+export function WordsCheck({ mnemonic, onDone }: { mnemonic: string; onDone: () => Promise<void> | void }) {
+  const words = mnemonic.split(' ');
+  const [stage, setStage] = useState<'show' | 'check'>('show');
+  const [asked] = useState(() => checkPositions());
+  const [typed, setTyped] = useState<string[]>(['', '', '']);
+  const [err, setErr] = useState(false);
+  const check = async () => {
+    const ok = asked.every((pos, i) => typed[i].trim().toLowerCase() === words[pos - 1]);
+    setErr(!ok);
+    if (ok) await onDone();
+  };
+  return (
+    <div class="card">
+      <h3>{t('words.title')}</h3>
+      <p class="warn">{t('words.why')}</p>
+      {stage === 'show' ? (
+        <>
+          <ol class="words">{words.map(w => <li class="mono">{w}</li>)}</ol>
+          <p class="small">{t('words.how')}</p>
+          <button type="button" class="btn primary" onClick={() => setStage('check')}>{t('words.written')}</button>
+        </>
+      ) : (
+        <>
+          <p class="small">{t('words.checkText')}</p>
+          {asked.map((pos, i) => (
+            <label class="field">
+              {t('words.word', { n: pos })}
+              <input type="text" class="mono" autoComplete="off" spellcheck={false} autoCapitalize="none" value={typed[i]}
+                onInput={e => setTyped(typed.map((x, j) => (j === i ? (e.target as HTMLInputElement).value : x)))} />
+            </label>
+          ))}
+          {err && <p class="error">{t('words.wrong')}</p>}
+          <button type="button" class="btn primary" disabled={typed.some(x => !x.trim())} onClick={check}>{t('words.check')}</button>
+          <button type="button" class="btn link" onClick={() => { setStage('show'); setErr(false); }}>{t('words.showAgain')}</button>
+        </>
+      )}
+    </div>
   );
 }

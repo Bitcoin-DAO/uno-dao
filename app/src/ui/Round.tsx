@@ -1,7 +1,7 @@
 // Payout rounds (protocol 6.1-6.3): prepare (council), check and sign, broadcast, receipt.
 import { useEffect, useState } from 'preact/hooks';
 import { mnemonicToSeedSync } from '@scure/bip39';
-import { broadcastRound, chainApis, receiptDepth, refreshTreasury, signAndPublish, useApp } from '../app';
+import { broadcastRound, chainApis, receiptDepth, refreshTreasury, signAndPublish, signingKey, useApp } from '../app';
 import { fmtSats, t } from '../i18n';
 import { KIND } from '../core/events';
 import { explorerOf, feePolicyOf, pushPageOf, sourceLabel, suggestFee, txSeenBy, txStatus, type Broadcast, type TxStatus } from '../core/chain';
@@ -77,7 +77,7 @@ export function PrepareRound() {
       const { event } = await signAndPublish(KIND.round, {
         round: roundLabel(s.now, settings.rules.timezone, cadenceOf(settings.rules.payoutRound)), proposals: list.map(p => p.event.id), psbt: built.psbt, fee_rate_sat_vb: r, fee_sat: built.fee,
       });
-      const tk = app.identity?.treasury;
+      const tk = signingKey();
       if (tk) await signAndPublish(KIND.sign, { psbt: signWithMnemonicKey(built.psbt, masterFromSeed(mnemonicToSeedSync(tk.mnemonic), cfg.network)) }, [['e', event.id]]);
       go(`/round/${event.id}`);
     } catch (e) {
@@ -266,7 +266,9 @@ export function RoundDetail({ id }: { id: string }) {
           {r.status === 'open' && app.isCouncil && app.secret && myEntry && (
             iSigned ? <p class="ok">{t('rd.signed')}</p> : (
               <>
-                {tk ? <button type="button" class="btn primary" disabled={busy} onClick={signTest}>{t('rd.signTest')}</button> : <p class="small">{t('rd.noKey')} <a href="#/profile">{t('tk.link')}</a></p>}
+                {tk && !app.identity?.wordsChecked ? <p class="warn">{t('words.needed')} <a href="#/profile">{t('words.toProfile')}</a></p>
+                  : tk ? <button type="button" class="btn primary" disabled={busy} onClick={signTest}>{t('rd.signTest')}</button>
+                  : <p class="small">{t('rd.noKey')} <a href="#/profile">{t('tk.link')}</a></p>}
                 <button type="button" class="btn link" style="align-self:flex-start" onClick={() => setExt(!ext)}>{t('rd.external')}</button>
                 {ext && (
                   <div class="stack">
@@ -308,7 +310,7 @@ export function RoundDetail({ id }: { id: string }) {
                   <div class="stack">
                     <p class="small">{t('rd.manual')}</p>
                     <button type="button" class="btn secondary" onClick={() => navigator.clipboard.writeText(rawHex).catch(() => undefined)}>{t('rd.copyTx')}</button>
-                    {apis.map(a => <a href={pushPageOf(a)} target="_blank" rel="noopener">{pushPageOf(a).replace(/^https?:\/\//, '')} ↗</a>)}
+                    {broadcastPages(apis, app.site?.broadcastPages).map(u => <a href={u} target="_blank" rel="noopener">{u.replace(/^https?:\/\//, '')} ↗</a>)}
                   </div>
                 );
                 return onChain ? (
@@ -373,4 +375,10 @@ function BroadcastReport({ b }: { b: Broadcast }) {
       {b.refused.map(x => <span>{t('rd.refusedBy', { source: sourceLabel(x.source, undefined, chainApis()), reason: x.reason })}</span>)}
     </div>
   );
+}
+
+/** The pages offered for a broadcast by hand: the site's own list, else each chain source's page (once each). */
+function broadcastPages(apis: string[], pages: string[] = []): string[] {
+  const own = pages.filter(u => /^https:\/\//.test(u));
+  return own.length ? own : [...new Set(apis.map(pushPageOf))];
 }

@@ -2,6 +2,34 @@
 
 Each release is a git tag (`v0.1.1`). A DAO's copy runs one tagged release and records it in its README; a release moves to a DAO's next stage only after passing the one before ([guide, section 8](docs/guide.md#8-the-three-stages-practice-testnet-mainnet)).
 
+## v0.3.0 · 9 November 2026
+
+The issues carried over from UNO's two runs (`docs/runs/`), and **Discussion**. Hardware keys move to v0.4.0 (`NEXT-RELEASE.md`).
+
+**Discussion** (protocol 4.5, `docs/guide.md` 6.2.1)
+- A **Discussion** page lists drafts and proposals by last activity, with what is new since this phone's last visit (a dot in the footer, a count per thread).
+- **New idea:** a title and a line or two; the thread opens at once.
+- **Versions:** the author posts v2, v3… with the proposal's fields; the newest is pinned at the top, the timeline below interleaves versions and posts.
+- **Posts:** members only, plain text, links clickable; no editing or deleting. Anyone can read a thread from its shared link.
+- **Submit:** the author submits a complete version as a proposal. Voting opens, the versions freeze, the thread carries on. The proposal page shows its **Discussion** and **Version**, and warns if the proposal differs from the version it names.
+- **Withdraw:** the author can withdraw an unsubmitted draft; it stays visible, closed.
+- New kinds 3587 (draft version), 3588 (post), 3589 (withdraw). The relay accepts them from any key, as it does every DAO kind; phones keep only members' posts, and the relay limits discussion events to 10 a minute per key.
+
+**Treasury keys**
+- **Council members write down the trial treasury key's 12 words at sign-up**, and type three of them back before the sign-up code is shown. Phones that already hold a key are asked on the profile, and signing waits for it.
+- **A lost treasury key can be reported to the council** ("Tell the council my key is lost", new kind 3590). The Council page then shows the keys left against the threshold (spare, no spare, stuck), and the home page counts them. Typing the words back in clears it.
+
+**Broadcasts and the chain**
+- **A second broadcast by itself:** a minute after a broadcast, the app sends the transaction once more to the sources that do not know it yet; a council phone that sees an unconfirmed round does the same.
+- **"Try again"** on the treasury reading waits 20 seconds after the last attempt.
+- **`broadcastPages`** (optional config): the pages offered for "Send it by hand", which the app never reads.
+
+**Tests**
+- New end-to-end tests: **discussion**, and **closing a DAO** (close vote, the sweeping round checked independently, receipt, closing version, closed pages).
+- Unit tests for discussion validation and key status; the 12-word step and the lost-key report in the payouts test.
+
+**Deploying:** the relay must be redeployed for the new kinds (the "Deploy relay" workflow); until then phones cannot publish discussion events or key reports to the DAO's own relay.
+
 ## v0.2.8 · 9 November 2026
 
 - **A closed DAO offers no new proposals.** The home page and the Proposals page no longer show "New proposal" or an empty "Open proposals" section once the DAO is closed; the home page links to the full record instead.

@@ -1,9 +1,9 @@
 import { useState } from 'preact/hooks';
-import { restoreTreasuryKey, signAndPublish, signOut, useApp } from '../app';
+import { markWordsChecked, restoreTreasuryKey, signAndPublish, signOut, useApp } from '../app';
 import { KIND } from '../core/events';
 import { fmtDate, t } from '../i18n';
 import { validAddress } from '../core/state';
-import { Address, Footer, Header, PrintCard, ShortCode, errText, go, askConfirm } from './parts';
+import { Address, Footer, Header, PrintCard, ShortCode, WordsCheck, errText, go, askConfirm } from './parts';
 
 export function Profile() {
   const app = useApp();
@@ -99,12 +99,33 @@ export function Profile() {
             {s && (() => {
               // Words lost too: say what that means for the treasury, and what fixes it.
               const set = s.settingsAt(s.now).content;
-              const others = set.council.length - 1;
-              return <p class="small">{t(others >= set.threshold ? 'tk.lostOk' : 'tk.lostLocked', { m: set.threshold, n: set.council.length, others })}</p>;
+              const others = set.council.length - 1 - s.lostKeys.filter(k => k.person !== me.person).length;
+              const mine = set.council.find(c => s.personOf(c.identityKey) === me.person);
+              const reported = s.lostKeys.some(k => k.person === me.person);
+              const report = async () => {
+                setTkMsg(undefined);
+                setBusy(true);
+                try {
+                  await signAndPublish(KIND.keystatus, { fingerprint: mine!.fingerprint.toLowerCase(), state: 'lost' });
+                } catch (e) {
+                  setTkMsg(errText(e));
+                } finally {
+                  setBusy(false);
+                }
+              };
+              return (
+                <>
+                  <p class="small">{t(others >= set.threshold ? 'tk.lostOk' : 'tk.lostLocked', { m: set.threshold, n: set.council.length, others })}</p>
+                  {mine && (reported ? <p class="ok">{t('tk.reported')}</p> : (
+                    <button type="button" class="btn secondary" disabled={busy} onClick={report}>{t('tk.report')}</button>
+                  ))}
+                </>
+              );
             })()}
           </div>
         )}
-        {me.council && tk && (
+        {me.council && tk && !app.identity?.wordsChecked && <WordsCheck mnemonic={tk.mnemonic} onDone={markWordsChecked} />}
+        {me.council && tk && app.identity?.wordsChecked && (
           <div class="card">
             <h3>{t('profile.treasuryKey')}</h3>
             {tkDone && <p class="ok">{t('tk.done')}</p>}

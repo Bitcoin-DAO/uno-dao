@@ -8,6 +8,7 @@ import { shortCode } from './shortcode';
 import { hashJson, nowSec, parseJson } from './util';
 import { inspectRound, memberSignatures, type RoundContent, type RoundInspection } from './round';
 import { cadenceOf, roundDatesAfter } from './time';
+import { buildDiscussion, type Discussion } from './discussion';
 
 // ---------- types ----------
 
@@ -82,6 +83,8 @@ export interface ProposalContent {
   link?: { url: string; sha256?: string };
   lang: string;
   payload: Record<string, any>;
+  /** Made from a discussion draft (protocol 4.5.4): its id and the version submitted. */
+  draft?: { id: string; version: number };
 }
 
 export type Choice = 'yes' | 'no' | 'abstain';
@@ -217,6 +220,10 @@ export interface DaoState {
   payments: Map<string, Payment>; // passed payouts and closes
   closed: boolean;
   keywraps: Map<string, { pubkey: string; nonce: string; ct: string; at: number }>;
+  /** Council treasury keys their holders have reported lost (dao.keystatus), for the keys in the current settings. */
+  lostKeys: { person: string; fingerprint: string; at: number }[];
+  /** Drafts and proposal threads (protocol 4.5). */
+  discussion: Discussion;
   rejected: Rejected[];
   personOf(key: string): string;
   /** Current key of a person. */
@@ -276,6 +283,7 @@ export function proposalSchemaError(c: ProposalContent, network: DaoConfig['netw
   if (!isStr(c.summary, 500)) return 'summary';
   if (typeof c.lang !== 'string') return 'lang';
   if (c.link !== undefined && !(c.link && typeof c.link.url === 'string' && /^https?:\/\//.test(c.link.url))) return 'link';
+  if (c.draft !== undefined && !(c.draft && /^[0-9a-f]{64}$/.test(c.draft.id) && Number.isInteger(c.draft.version) && c.draft.version >= 1)) return 'draft';
   const p = c.payload;
   if (!p || typeof p !== 'object') return 'payload';
   switch (c.type) {
@@ -362,7 +370,7 @@ export function rebuild(site: SiteConfig, events: Event[], prefer?: string, now 
     now, founded, pending: founded ? [] : candidates, conflict: foundedAll.length > 1,
     rosters: [], settings: [], rosterCandidates: [], settingsCandidates: [], rosterDisputed: false, settingsDisputed: false,
     members: [], proposals: [], verifies: [], rekeys: [], leaves: new Map(), pendingRoster: [], pendingSettings: [],
-    rounds: [], payments: new Map(), closed: false,
+    rounds: [], payments: new Map(), lostKeys: [], discussion: { threads: [], byId: new Map(), ofProposal: new Map() }, closed: false,
     keywraps: new Map(), rejected,
     personOf: k => k, keyOf: p => p, isCouncilAt: () => false, memberAt: () => false,
     rosterAt: () => { throw new Error('not founded'); }, settingsAt: () => { throw new Error('not founded'); },
@@ -960,8 +968,31 @@ export function rebuild(site: SiteConfig, events: Event[], prefer?: string, now 
     keywraps.set(c, { pubkey: e.pubkey, nonce: body.nonce, ct: body.ct, at: e.created_at });
   }
 
+  // Key status (protocol 5.5): the holder's latest notice about the treasury key with this fingerprint counts.
+  const latestNotice = new Map<string, { lost: boolean; at: number }>();
+  for (const e of ofKind(KIND.keystatus)) {
+    const c = parseJson<{ fingerprint?: string; state?: string }>(e.content);
+    const fp = c?.fingerprint?.toLowerCase();
+    if (!fp || (c!.state !== 'lost' && c!.state !== 'found')) { rejected.push({ event: e, reason: 'keystatus: malformed' }); continue; }
+    const entry = settingsAt(e.created_at).content.council.find(x => personOf(x.identityKey) === personOf(e.pubkey));
+    if (!entry || entry.fingerprint.toLowerCase() !== fp) { rejected.push({ event: e, reason: 'keystatus: not the signer\'s council key' }); continue; }
+    const k = `${personOf(e.pubkey)}:${fp}`;
+    const prev = latestNotice.get(k);
+    if (!prev || e.created_at >= prev.at) latestNotice.set(k, { lost: c!.state === 'lost', at: e.created_at });
+  }
+  const lostKeys = settings[settings.length - 1].content.council
+    .map(x => ({ person: personOf(x.identityKey), fingerprint: x.fingerprint.toLowerCase() }))
+    .flatMap(x => {
+      const n = latestNotice.get(`${x.person}:${x.fingerprint}`);
+      return n?.lost ? [{ ...x, at: n.at }] : [];
+    });
+
+  const discussion = buildDiscussion({ events: mine, proposals, memberAt, personOf, rejected });
+
   return {
     ...empty,
+    lostKeys,
+    discussion,
     rosters, settings, rosterCandidates, settingsCandidates, rosterDisputed, settingsDisputed,
     members, rules: settings[settings.length - 1].content.rules, proposals, verifies, rekeys, leaves,
     pendingRoster, pendingSettings, rounds, payments, closed: closedNow, keywraps,

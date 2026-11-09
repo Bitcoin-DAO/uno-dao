@@ -1,6 +1,7 @@
 // End-to-end, stage 3: a 2-of-3 treasury on the mock chain. A passed payout goes into a round,
 // two council phones sign with their trial keys, the round is broadcast, confirms, and is paid.
 const { chromium } = require('playwright');
+const { writeDownWords } = require('./words.cjs');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
 
@@ -44,13 +45,14 @@ async function paste(page, code) {
   await page.locator('.scanner textarea').fill(code);
   await page.getByRole('button', { name: 'Usa', exact: true }).click();
 }
-async function signUp(page, name, council) {
+async function signUp(page, name, council, wrongWords = false) {
   await page.goto(URL0 + '#/founder');
   await page.getByRole('textbox').fill(name);
   if (council) await page.getByLabel('Chiedo un posto nel Consiglio').check();
   await page.getByLabel(/Ho almeno 18 anni/).check();
   await page.getByRole('button', { name: 'Avanti' }).click();
   await page.getByRole('button', { name: 'Crea con impronta o volto' }).click();
+  if (council) await writeDownWords(page, { tryWrong: wrongWords });
   await page.getByRole('button', { name: 'Copia il codice' }).click();
   return copied(page);
 }
@@ -161,6 +163,11 @@ async function signUp(page, name, council) {
   await open(mb, '#/profile');
   const box = mb.getByLabel(/Scrivi le 12 parole/);
   check(await seen(mb.getByText(/Hai perso anche le parole\? .*gli altri 2 membri del Consiglio possono darle/)), 'lost words: the treasury still works with the others, council change needed');
+  await mb.getByRole('button', { name: 'Avvisa il Consiglio che la mia chiave è persa' }).click();
+  check(await seen(mb.getByText(/Il Consiglio è stato avvisato ✓/)), 'lost key reported to the council');
+  await open(a, '#/council');
+  check(await seen(a.getByText(/Chiavi della tesoreria segnalate perse: @marco\. Ne restano 2 su 3 e i pagamenti ne richiedono 2: nessuna riserva/)), 'council page: keys left, no spare');
+  await open(mb, '#/profile');
   const wrong = 'abandon '.repeat(11) + 'about';
   await box.fill(wrong);
   await mb.getByRole('button', { name: 'Rimetti la chiave su questo telefono' }).click();
@@ -168,6 +175,9 @@ async function signUp(page, name, council) {
   await box.fill(words.toUpperCase().replace(/ /g, '   '));
   await mb.getByRole('button', { name: 'Rimetti la chiave su questo telefono' }).click();
   check(await seen(mb.getByText(/Chiave della tesoreria rimessa/)), 'own words accepted (case and spacing ignored)');
+  await open(a, '#/council');
+  await a.getByRole('heading', { name: /Consiglio/ }).first().waitFor();
+  check(await a.getByText(/segnalate perse/).waitFor({ state: 'detached', timeout: 15000 }).then(() => true, () => false), 'key found again: the warning is gone');
   await open(B.page, `#/round/${rid}`);
   await B.page.getByRole('button', { name: 'Firma con la chiave di prova' }).waitFor({ timeout: 20000 });
   await shot(B.page, '02-sign');

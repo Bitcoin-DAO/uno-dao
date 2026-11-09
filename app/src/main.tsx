@@ -25,6 +25,7 @@ import { Candidate } from './ui/Candidate';
 import { Sponsor } from './ui/Sponsor';
 import { Council } from './ui/Council';
 import { PrepareRound, RoundDetail } from './ui/Round';
+import { DiscussionList, NewIdea, ThreadView } from './ui/Discussion';
 
 const routes: Record<string, () => preact.JSX.Element> = {
   '/': Home,
@@ -40,6 +41,8 @@ const routes: Record<string, () => preact.JSX.Element> = {
   '/sponsor': Sponsor,
   '/council': Council,
   '/round/new': PrepareRound,
+  '/discussion': DiscussionList,
+  '/discussion/new': NewIdea,
   '/candidate': () => <Candidate role="candidate" />,
   '/lost': () => <Candidate role="rekey" />,
 };
@@ -85,6 +88,8 @@ function App() {
     const [, kind, id] = param;
     return <div class="app">{kind === 'p' ? <ProposalDetail id={id} /> : kind === 'confirm' ? <Confirm id={id} /> : <RoundDetail id={id} />}</div>;
   }
+  const thread = path.match(/^\/d\/([0-9a-f]{64})(\/version)?$/);
+  if (thread) return <div class="app">{thread[2] ? <NewProposal draftId={thread[1]} /> : <ThreadView id={thread[1]} />}</div>;
   const Screen = routes[path] ?? Home;
   return <div class="app"><Screen /></div>;
 }

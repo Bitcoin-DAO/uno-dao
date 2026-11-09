@@ -413,5 +413,22 @@ export async function txSeenBy(apis: string[], txid: string, f: Fetcher = defaul
   return seen.filter((x): x is string => !!x);
 }
 
+/**
+ * Send a transaction again to the sources that do not know it yet, if at least one does and it is not
+ * confirmed. Returns the sources that accepted it now (empty: nothing to do, or none accepted).
+ */
+export async function sendToMissing(apis: string[], hex: string, txid: string, f: Fetcher = defaultFetch): Promise<string[]> {
+  const seen = new Set(await txSeenBy(apis, txid, f));
+  const missing = apis.filter(a => !seen.has(a));
+  if (!seen.size || !missing.length) return [];
+  const st = await txStatus([...seen], txid, f);
+  if (st?.confirmed) return [];
+  try {
+    return (await broadcast(missing, hex, txid)).accepted;
+  } catch {
+    return [];
+  }
+}
+
 /** The source of the latest successful answer. */
 export const lastSource = () => lastAnswer;

@@ -42,6 +42,8 @@ __export(config_exports, {
   DB_PRUNE_TARGET_GB: () => DB_PRUNE_TARGET_GB,
   DB_PRUNING_ENABLED: () => DB_PRUNING_ENABLED,
   DB_SIZE_THRESHOLD_GB: () => DB_SIZE_THRESHOLD_GB,
+  DISCUSSION_KINDS: () => DISCUSSION_KINDS,
+  DISCUSSION_RATE_LIMIT: () => DISCUSSION_RATE_LIMIT,
   GLOBAL_QUERY_CACHE: () => GLOBAL_QUERY_CACHE,
   PAY_TO_RELAY_ENABLED: () => PAY_TO_RELAY_ENABLED,
   PUBKEY_RATE_LIMIT: () => PUBKEY_RATE_LIMIT,
@@ -78,7 +80,7 @@ var AUTH_REQUIRED = false;
 var AUTH_TIMEOUT_MS = 6e5;
 var relayInfo = {
   name: "btc-dao relay",
-  description: "Relay for btc-dao DAOs. Accepts only the DAO's own events, kinds 3570-3586 with its D tag, and keeps all of them.",
+  description: "Relay for btc-dao DAOs. Accepts only the DAO's own events, kinds 3570-3590 with its D tag, and keeps all of them.",
   pubkey: "",
   contact: "https://github.com/Bitcoin-DAO/btc-dao",
   supported_nips: [1, 11, 12, 16, 20],
@@ -270,8 +272,10 @@ var allowedPubkeys = /* @__PURE__ */ new Set([
 ]);
 var blockedEventKinds = /* @__PURE__ */ new Set([]);
 var allowedEventKinds = new Set(
-  Array.from({ length: 3586 - 3570 + 1 }, (_, i) => 3570 + i)
+  Array.from({ length: 3590 - 3570 + 1 }, (_, i) => 3570 + i)
 );
+var DISCUSSION_KINDS = /* @__PURE__ */ new Set([3587, 3588]);
+var DISCUSSION_RATE_LIMIT = { rate: 10 / 6e4, capacity: 20 };
 var ALLOWED_DAO_IDS = [];
 var blockedContent = /* @__PURE__ */ new Set([]);
 var checkValidNip05 = false;
@@ -5226,6 +5230,8 @@ var _RelayWebSocket = class _RelayWebSocket {
   constructor(state, env) {
     this.processedEvents = /* @__PURE__ */ new Map();
     // eventId -> timestamp
+    this.discussionLimits = /* @__PURE__ */ new Map();
+    // btc-dao: per-key limit for discussion kinds
     // Query cache for REQ messages
     this.queryCache = /* @__PURE__ */ new Map();
     this.QUERY_CACHE_TTL = 6e4;
@@ -5762,6 +5768,19 @@ var _RelayWebSocket = class _RelayWebSocket {
         }
         if (event.kind !== 1059 && !session.authenticatedPubkeys.has(event.pubkey)) {
           this.sendOK(session.webSocket, event.id, false, "restricted: event pubkey does not match authenticated pubkey");
+          return;
+        }
+      }
+      if (DISCUSSION_KINDS.has(event.kind)) {
+        let lim = this.discussionLimits.get(event.pubkey);
+        if (!lim) {
+          lim = new RateLimiter(DISCUSSION_RATE_LIMIT.rate, DISCUSSION_RATE_LIMIT.capacity);
+          this.discussionLimits.set(event.pubkey, lim);
+          if (this.discussionLimits.size > 1e4)
+            this.discussionLimits.delete(this.discussionLimits.keys().next().value);
+        }
+        if (!lim.removeToken()) {
+          this.sendOK(session.webSocket, event.id, false, "rate-limited: too many discussion posts from this key, try again in a minute");
           return;
         }
       }

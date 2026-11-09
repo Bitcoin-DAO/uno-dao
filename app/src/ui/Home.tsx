@@ -1,5 +1,5 @@
-import { useState } from 'preact/hooks';
-import { chainApis, refreshTreasury, useApp } from '../app';
+import { useEffect, useState } from 'preact/hooks';
+import { chainApis, manualRetryIn, refreshTreasury, useApp } from '../app';
 import { fmtDate, fmtSats, t } from '../i18n';
 import { Address, Footer, Header, Qr, go } from './parts';
 import { Join } from './Join';
@@ -45,13 +45,13 @@ export function Home() {
                 {app.treasuryLoading ? ` · ${t('home.updating')}` : app.treasuryError ? ` · ${t('home.notUpdated')}` : ''}
               </span>
               {app.treasuryError && !app.treasuryLoading && (
-                <button type="button" class="btn link" onClick={() => refreshTreasury()}>{t('retry')}</button>
+                <RetryButton cls="btn link" />
               )}
             </>
           ) : app.treasuryError && !app.treasuryLoading ? (
             <>
               <p class="error">{t('home.chainError', { msg: app.treasuryError })}</p>
-              <button type="button" class="btn secondary" onClick={() => refreshTreasury()}>{t('retry')}</button>
+              <RetryButton cls="btn secondary" />
             </>
           ) : (
             <div class="balance" aria-busy="true">…</div>
@@ -60,7 +60,7 @@ export function Home() {
           <div class="row">
             <div class="stack" style="gap:2px">
               <strong>{t('home.signatures', { m, n })}</strong>
-              <span class="small">{t('home.councilKeys', { n })}</span>
+              <span class="small">{t('home.councilKeys', { n })}{app.dao!.lostKeys.length > 0 && ` · ${t('home.keysLost', { k: app.dao!.lostKeys.length })}`}</span>
             </div>
             <div class="dots" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i class={i < m ? 'on' : ''} />)}</div>
           </div>
@@ -184,5 +184,21 @@ function Donate({ address, first, testnet }: { address: string; first?: boolean;
       <button type="button" class="btn dark" onClick={copy}>{copied ? t('home.copied') : t('home.copy')}</button>
       <p class="small">{t('home.donateNote')}</p>
     </section>
+  );
+}
+
+/** "Try again" for the treasury reading, paused for a few seconds after the last attempt. */
+function RetryButton({ cls }: { cls: string }) {
+  const [, tick] = useState(0);
+  const wait = manualRetryIn();
+  useEffect(() => {
+    if (!wait) return;
+    const id = setTimeout(() => tick(n => n + 1), 1000);
+    return () => clearTimeout(id);
+  });
+  return (
+    <button type="button" class={cls} disabled={wait > 0} onClick={() => refreshTreasury()}>
+      {wait > 0 ? t('retryIn', { s: Math.ceil(wait / 1000) }) : t('retry')}
+    </button>
   );
 }

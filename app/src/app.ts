@@ -4,7 +4,7 @@ import { stageError, stageOf, usable, type SiteConfig } from './core/config';
 import { KIND, sign, template, type Event } from './core/events';
 import { rebuild, type DaoState, type Member } from './core/state';
 import { parseDescriptor } from './core/descriptor';
-import { broadcast, loadTreasury, txStatus, type Broadcast, type TreasuryView, type TxStatus } from './core/chain';
+import { broadcast, loadTreasury, sendToMissing, txStatus, type Broadcast, type TreasuryView, type TxStatus } from './core/chain';
 import { finalizeRound } from './core/round';
 import type { RoundView } from './core/state';
 import { prfSalt, pubkeyOf, treasuryKeyFromMnemonic, unwrapSecret, wrapSecret } from './core/identity';
@@ -94,6 +94,7 @@ const broadcasted = new Map<string, number>();
 /** A broadcast that no source has seen after this long is sent again. */
 const REBROADCAST_MS = 10 * 60_000;
 const receipted = new Set<string>();
+const firstSeen = new Map<string, number>();
 /** What the chain last said about each open round's transaction (filled by council phones' sync, read by the Council page). */
 export const chainSeen = new Map<string, TxStatus>();
 
@@ -109,12 +110,34 @@ export const chainApis = () => [...new Set([...usable(state.site?.chainApi ?? []
 
 /** Combine the round's signatures, finalise and broadcast. Anyone may do this; doing it twice is harmless. */
 export async function broadcastRound(r: RoundView): Promise<Broadcast> {
-  const psbts = r.signEvents.map(e => parseJson<{ psbt: string }>(e.content)!.psbt);
-  const { hex } = finalizeRound(psbts);
+  const hex = roundHex(r);
   const sent = await broadcast(chainApis(), hex, r.inspection!.txid);
   broadcasted.set(sent.txid, Date.now());
+  setTimeout(() => void fillGaps(r), FOLLOW_UP_MS);
   void refreshTreasury();
   return sent;
+}
+
+const roundHex = (r: RoundView) => finalizeRound(r.signEvents.map(e => parseJson<{ psbt: string }>(e.content)!.psbt)).hex;
+
+/** A minute after a broadcast, the sources that do not know the transaction yet get it once more. */
+export const FOLLOW_UP_MS = 60_000;
+const followedUp = new Set<string>();
+
+/**
+ * Send an unconfirmed round's transaction to the sources that do not know it (once per transaction on this
+ * phone). Seen in UNO DAO's run: a broadcast accepted everywhere was known to 2 of 3 sources until it was
+ * sent again, and then confirmed quickly.
+ */
+export async function fillGaps(r: RoundView): Promise<string[]> {
+  const txid = r.inspection?.txid;
+  if (!txid || followedUp.has(txid)) return [];
+  followedUp.add(txid);
+  try {
+    return await sendToMissing(chainApis(), roundHex(r), txid);
+  } catch {
+    return [];
+  }
 }
 
 /** Council apps broadcast ready rounds and publish the receipt once the transaction confirms (protocol 6.2, 6.3). */
@@ -132,6 +155,12 @@ async function autoRounds() {
       } catch {
         /* someone else may have broadcast it, or the API is down: try again next sync */
       }
+    }
+    // Known somewhere but not confirmed, a minute after this phone first saw it: fill the gaps once.
+    if (st && !st.confirmed) {
+      const first = firstSeen.get(txid) ?? Date.now();
+      firstSeen.set(txid, first);
+      if (Date.now() - first >= FOLLOW_UP_MS) void fillGaps(r);
     }
     if (st) chainSeen.set(txid, st);
     else chainSeen.delete(txid);
@@ -221,6 +250,9 @@ const TREASURY_RETRY_MS = 2 * 60_000; // after a failed read, wait this long bef
 let treasuryRead: Promise<void> | undefined;
 let readAgain = false;
 let lastTreasuryTry = 0;
+const MANUAL_RETRY_MS = 20_000; // a "Try again" waits this long after the last attempt, so taps do not pile up on a struggling source
+/** Milliseconds before a manual "Try again" may read the treasury again (0: now). */
+export const manualRetryIn = () => Math.max(0, lastTreasuryTry + MANUAL_RETRY_MS - Date.now());
 let lastRoundMarker: string | undefined;
 
 /**
@@ -291,7 +323,7 @@ export async function completeFounding(freshPasskey = false): Promise<void> {
     await store.setPending(pending);
     derive(state.events, { pending });
   }
-  let identity: LocalIdentity = { daoId, pubkey: pending.pubkey, credId: pending.credId, treasury: pending.treasury };
+  let identity: LocalIdentity = { daoId, pubkey: pending.pubkey, credId: pending.credId, treasury: pending.treasury, wordsChecked: pending.wordsChecked };
   if (pending.credId && pending.prfSupported) {
     const a = freshPrf
       ? { prf: freshPrf, credTag: credTagOf(pending.credId) }
@@ -389,10 +421,28 @@ export async function restoreTreasuryKey(words: string): Promise<void> {
     throw new Error(t('tk.badWords'));
   }
   if (key.xpub !== entry.xpub || key.fingerprint !== entry.fingerprint.toLowerCase()) throw new Error(t('tk.wrongKey', { fp: entry.fingerprint }));
-  const next: LocalIdentity = { ...identity, treasury: key };
+  // Typed back in full: the member has the words.
+  const next: LocalIdentity = { ...identity, treasury: key, wordsChecked: Math.floor(Date.now() / 1000) };
+  await store.setIdentity(next);
+  setState({ identity: next });
+  // Reported lost earlier: tell the council it is back.
+  if (dao.lostKeys.some(k => k.person === me.person)) await signAndPublish(KIND.keystatus, { fingerprint: key.fingerprint.toLowerCase(), state: 'found' });
+}
+
+/** The council member showed the treasury key's 12 words are written down (profile check). */
+export async function markWordsChecked(): Promise<void> {
+  const { identity } = state;
+  if (!identity) return;
+  const next: LocalIdentity = { ...identity, wordsChecked: Math.floor(Date.now() / 1000) };
   await store.setIdentity(next);
   setState({ identity: next });
 }
+
+/** Trial signing waits until the treasury key's words are written down (a key with no copy is one wipe from lost). */
+export const signingKey = () => {
+  const tk = state.identity?.treasury;
+  return tk && state.identity?.wordsChecked ? tk : undefined;
+};
 
 export function signOut() {
   if (state.daoId) session.clear(state.daoId);

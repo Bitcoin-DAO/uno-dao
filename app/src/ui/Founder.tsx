@@ -8,7 +8,7 @@ import type { GenesisCandidate } from '../core/state';
 import { shortCode, formatShortCode } from '../core/shortcode';
 import { createPasskey, passkeysAvailable } from '../lib/passkey';
 import { store, type PendingFounder } from '../lib/store';
-import { Header, ProtectKey, PrintCard, Qr, ShortCode, Steps, errText, go, askConfirm } from './parts';
+import { Header, ProtectKey, PrintCard, WordsCheck, Qr, ShortCode, Steps, errText, go, askConfirm } from './parts';
 import { Candidate } from './Candidate';
 
 export function Founder() {
@@ -26,6 +26,24 @@ export function Founder() {
     g.config.council.some(c => c.identityKey === pending.pubkey) || g.config.founders.some(f => f.identityKey === pending.pubkey);
   const myGenesis = app.dao?.pending.find(listedIn);
   if (app.daoId || codeDone || myGenesis) return <Wait pending={pending} />;
+
+  // A council seat on a trial network: the treasury key's 12 words are written down before the code is shared.
+  if (pending.council && pending.treasury && !pending.wordsChecked) {
+    const done = async () => {
+      const next = { ...pending, wordsChecked: Math.floor(Date.now() / 1000) };
+      await store.setPending(next);
+      setState({ pending: next });
+    };
+    return (
+      <>
+        <Header sub={t('fs.title')} />
+        <main>
+          <Steps n={3} />
+          <WordsCheck mnemonic={pending.treasury.mnemonic} onDone={done} />
+        </main>
+      </>
+    );
+  }
 
   const code: FounderCode = {
     t: 'btcdao-founder',

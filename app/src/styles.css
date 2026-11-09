@@ -134,3 +134,11 @@ label.check input { width: 24px; height: 24px; margin: 0; flex: none; accent-col
 .idcard .nm { font-weight: 600; font-size: 11pt; }
 .idcard .sc { font-family: var(--mono); font-size: 11pt; font-weight: 600; }
 .idcard .fine { font-size: 6.5pt; color: #333; }
+
+.words { columns: 2; column-gap: 24px; margin: 4px 0; padding-left: 28px; font-size: 16px; line-height: 2; }
+.words li { break-inside: avoid; }
+
+.chip.new { background: var(--accent); color: var(--accent-ink); }
+.version.pinned { border: 2px solid var(--teal); }
+.post { background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; }
+.footer .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: 4px; vertical-align: super; }

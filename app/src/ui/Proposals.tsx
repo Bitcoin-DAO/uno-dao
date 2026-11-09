@@ -169,6 +169,7 @@ export function ProposalDetail({ id }: { id: string }) {
           <h3>{t('pd.what')}</h3>
           <p style="white-space:pre-wrap">{c.summary}</p>
           {c.link && <a href={c.link.url} target="_blank" rel="noopener noreferrer">{t('pd.link')} ↗</a>}
+          <ThreadLine id={p.event.id} />
           <Payload p={p} />
           {p.status === 'passed' && <PaymentLine id={p.event.id} />}
           {p.status === 'passed' && <InForceLine id={p.event.id} />}
@@ -359,4 +360,19 @@ function InForceLine({ id }: { id: string }) {
     );
   }
   return null;
+}
+
+/** The proposal's discussion: its thread, and the draft version it was made from. */
+function ThreadLine({ id }: { id: string }) {
+  const s = useApp().dao!;
+  const th = s.discussion.ofProposal.get(id);
+  if (!th) return null;
+  return (
+    <div class="kvs">
+      <div class="kv"><span>{t('pd.discussion')}</span><a href={`#/d/${th.id}`}>{t('pd.thread', { n: th.posts.length })} →</a></div>
+      {th.submitted && (
+        <div class="kv"><span>{t('pd.version')}</span><span class={th.submitted.matches ? '' : 'warn'}>{th.submitted.matches ? `v${th.submitted.version}` : t('pd.versionDiffers', { n: th.submitted.version })}</span></div>
+      )}
+    </div>
+  );
 }

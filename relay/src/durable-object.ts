@@ -1,6 +1,8 @@
 import { NostrEvent, NostrFilter, RateLimiter, WebSocketSession, Env, DOBroadcastRequest, QueryResult } from './types';
 import {
   PUBKEY_RATE_LIMIT,
+  DISCUSSION_KINDS,
+  DISCUSSION_RATE_LIMIT,
   REQ_RATE_LIMIT,
   PAY_TO_RELAY_ENABLED,
   AUTH_REQUIRED,
@@ -49,6 +51,7 @@ export class RelayWebSocket implements DurableObject {
   private doId: string;
   private doName: string;
   private processedEvents: Map<string, number> = new Map(); // eventId -> timestamp
+  private discussionLimits: Map<string, RateLimiter> = new Map(); // btc-dao: per-key limit for discussion kinds
 
   // Query cache for REQ messages
   private queryCache: Map<string, CacheEntry> = new Map();
@@ -796,6 +799,20 @@ export class RelayWebSocket implements DurableObject {
           // Authenticated but event pubkey doesn't match - use "restricted:" per NIP-42
           // so the client knows not to retry auth
           this.sendOK(session.webSocket, event.id, false, 'restricted: event pubkey does not match authenticated pubkey');
+          return;
+        }
+      }
+
+      // btc-dao: discussion events are limited per key, across connections
+      if (DISCUSSION_KINDS.has(event.kind)) {
+        let lim = this.discussionLimits.get(event.pubkey);
+        if (!lim) {
+          lim = new RateLimiter(DISCUSSION_RATE_LIMIT.rate, DISCUSSION_RATE_LIMIT.capacity);
+          this.discussionLimits.set(event.pubkey, lim);
+          if (this.discussionLimits.size > 10000) this.discussionLimits.delete(this.discussionLimits.keys().next().value!);
+        }
+        if (!lim.removeToken()) {
+          this.sendOK(session.webSocket, event.id, false, 'rate-limited: too many discussion posts from this key, try again in a minute');
           return;
         }
       }

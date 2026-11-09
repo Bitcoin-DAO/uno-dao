@@ -23,6 +23,10 @@ export const KIND = {
   anchor: 3584,
   listing: 3585,
   keywrap: 3586,
+  draft: 3587,
+  post: 3588,
+  withdraw: 3589,
+  keystatus: 3590,
 } as const;
 
 export const ALL_KINDS = Object.values(KIND);

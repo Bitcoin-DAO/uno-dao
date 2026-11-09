@@ -3,7 +3,8 @@ import { useState } from 'preact/hooks';
 import { signAndPublish, useApp } from '../app';
 import { fmtSats, t } from '../i18n';
 import { KIND } from '../core/events';
-import { DUST, proposalSchemaError, validAddress, type ProposalContent, type ProposalType } from '../core/state';
+import { DUST, proposalSchemaError, validAddress, type Output, type ProposalContent, type ProposalType } from '../core/state';
+import type { DraftContent } from '../core/discussion';
 import { cadenceOf } from '../core/time';
 import { Footer, Header, errText, go } from './parts';
 import { EDITABLE_RULES, periodText, ruleLabel, ruleValue, typeLabel } from './Proposals';
@@ -12,25 +13,49 @@ import { feePolicyOf } from '../core/chain';
 
 const TYPES: ProposalType[] = ['payout', 'statement', 'remove_member', 'change_rules', 'close'];
 
-export function NewProposal() {
+/** The form's fields from a draft version (protocol 4.5.1), so a new version starts from the latest one. */
+function fieldsOf(c?: DraftContent) {
+  const p = c?.payload ?? {};
+  const out = (p.outputs as Output[] | undefined)?.[0];
+  const change = (p.changes as { path: string; to: unknown }[] | undefined)?.[0];
+  return {
+    type: (c?.type ?? 'payout') as ProposalType,
+    title: c?.title ?? '',
+    summary: c?.summary ?? '',
+    recipient: (p.recipient as string) ?? '',
+    address: (c?.type === 'close' ? (p.destination as string) : out?.address) ?? '',
+    amount: out?.amount_sat ? String(out.amount_sat) : '',
+    forMember: out?.member ?? '',
+    member: (p.member_key as string) ?? '',
+    reason: (p.reason as string) ?? '',
+    rule: (change?.path?.replace(/^rules\./, '') ?? 'votingPeriodDays') as (typeof EDITABLE_RULES)[number],
+    value: change?.to !== undefined && change?.to !== null ? String(change.to) : '',
+  };
+}
+
+/** New proposal, or with `draftId` a new version of a discussion draft (same fields, nothing required but the title). */
+export function NewProposal({ draftId }: { draftId?: string } = {}) {
   const app = useApp();
   const s = app.dao!;
   const network = app.site!.network;
-  const [type, setType] = useState<ProposalType>('payout');
+  const thread = draftId ? s.discussion.byId.get(draftId) : undefined;
+  const latest = thread?.versions[thread.versions.length - 1];
+  const [init] = useState(() => fieldsOf(latest?.content));
+  const [type, setType] = useState<ProposalType>(init.type);
   const returnTo = s.founded!.config.testnetTreasury ?? app.site!.testnetTreasury;
   const returnOk = !!returnTo && validAddress(returnTo.address, network);
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
+  const [title, setTitle] = useState(init.title);
+  const [summary, setSummary] = useState(init.summary);
   const [link, setLink] = useState('');
-  const [recipient, setRecipient] = useState('');
-  const [address, setAddress] = useState('');
-  const [amount, setAmount] = useState('');
+  const [recipient, setRecipient] = useState(init.recipient);
+  const [address, setAddress] = useState(init.address);
+  const [amount, setAmount] = useState(init.amount);
   const [iAm, setIAm] = useState(false);
-  const [member, setMember] = useState('');
-  const [forMember, setForMember] = useState('');
-  const [reason, setReason] = useState('');
-  const [rule, setRule] = useState<(typeof EDITABLE_RULES)[number]>('votingPeriodDays');
-  const [value, setValue] = useState('');
+  const [member, setMember] = useState(init.member);
+  const [forMember, setForMember] = useState(init.forMember);
+  const [reason, setReason] = useState(init.reason);
+  const [rule, setRule] = useState<(typeof EDITABLE_RULES)[number]>(init.rule);
+  const [value, setValue] = useState(init.value);
   const [msg, setMsg] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -39,6 +64,15 @@ export function NewProposal() {
       <>
         <Header />
         <main><p class="lead">{t('closed.text')}</p></main>
+        <Footer />
+      </>
+    );
+  }
+  if (draftId && (!thread || thread.kind !== 'draft' || thread.status !== 'open' || thread.author !== app.me?.person)) {
+    return (
+      <>
+        <Header />
+        <main><p class="lead">{t('ds.notYours')}</p></main>
         <Footer />
       </>
     );
@@ -90,10 +124,20 @@ export function NewProposal() {
     : type === 'change_rules' && parsedValue === undefined ? t('np.newValue') : undefined;
   const ok = !schemaErr && !addrError && !amtError && !(type === 'change_rules' && (parsedValue === undefined || parsedValue === current || (rule === 'payoutRound' && parsedValue === cadenceOf(current))));
 
+  // A draft version may be partial: only the title is required, and wrong values are still flagged.
+  const draftOk = !!title.trim() && !addrError && !amtError;
+  const nextVersion = (thread?.versions.length ?? 0) + 1;
+
   const publish = async () => {
     setMsg(undefined);
     setBusy(true);
     try {
+      if (draftId) {
+        const draft: DraftContent = { version: nextVersion, title: title.trim(), summary: summary.trim(), type, payload, lang: app.lang };
+        await signAndPublish(KIND.draft, draft, [['e', draftId]]);
+        go(`/d/${draftId}`);
+        return;
+      }
       const { event } = await signAndPublish(KIND.proposal, content);
       if (iAm && !(type === 'payout' && payee && payeeStanding?.address === addr) && (type === 'payout' || type === 'close')) await signAndPublish(KIND.confirm, { address: addr }, [['e', event.id]]);
       go(`/p/${event.id}`);
@@ -119,7 +163,8 @@ export function NewProposal() {
     <>
       <Header />
       <main>
-        <h1>{t('np.title')}</h1>
+        <h1>{draftId ? t('ds.newVersion', { n: nextVersion }) : t('np.title')}</h1>
+        {draftId && <p class="small">{t('ds.versionHint')}</p>}
         <label class="field">
           {t('np.type')}
           <select value={type} onChange={e => {
@@ -137,7 +182,7 @@ export function NewProposal() {
           <textarea maxLength={500} value={summary} style="font-family:inherit;font-size:16px" onInput={e => setSummary((e.target as HTMLTextAreaElement).value)} />
           <span class="small" style="font-weight:400">{t('np.summaryHint')} {summary.length}/500</span>
         </label>
-        <label class="field">{t('np.link')}<input type="text" inputMode="url" placeholder="https://" value={link} onInput={e => setLink((e.target as HTMLInputElement).value)} /></label>
+        {!draftId && <label class="field">{t('np.link')}<input type="text" inputMode="url" placeholder="https://" value={link} onInput={e => setLink((e.target as HTMLInputElement).value)} /></label>}
 
         {type === 'payout' && (
           <div class="card">
@@ -158,7 +203,7 @@ export function NewProposal() {
             <label class="field">{t('np.amount')}<input type="text" inputMode="numeric" value={amount} onInput={e => setAmount((e.target as HTMLInputElement).value.replace(/[^\d]/g, ''))} /></label>
             {amount && !amtError && <span class="small">{fmtSats(amt)} sats</span>}
             {amtError && <p class="error">{amtError}</p>}
-            {!(payee && payeeStanding?.address === addr) && (
+            {!draftId && !(payee && payeeStanding?.address === addr) && (
               <>
                 <label class="check"><input type="checkbox" checked={iAm} onChange={e => setIAm((e.target as HTMLInputElement).checked)} />{t('np.iAmRecipient')}</label>
                 {!iAm && <p class="small">{t('np.recipientLater')}</p>}
@@ -228,12 +273,21 @@ export function NewProposal() {
             {returnOk && <p class="note">{t('np.returnNote', { name: returnTo!.name })}</p>}
             <label class="field">{t('np.destination')}<input type="text" class="mono" autoComplete="off" spellcheck={false} value={address} onInput={e => setAddress((e.target as HTMLInputElement).value)} /></label>
             {addrError && <p class="error">{addrError}</p>}
-            <label class="check"><input type="checkbox" checked={iAm} onChange={e => setIAm((e.target as HTMLInputElement).checked)} />{t('np.iAmRecipient')}</label>
+            {!draftId && <label class="check"><input type="checkbox" checked={iAm} onChange={e => setIAm((e.target as HTMLInputElement).checked)} />{t('np.iAmRecipient')}</label>}
           </div>
         )}
 
-        <button type="button" class="btn primary" disabled={!ok || busy} onClick={publish}>{t('np.publish')}</button>
-        {!ok && missing && <p class="small">{t('np.missing', { what: missing })}</p>}
+        {draftId ? (
+          <>
+            <button type="button" class="btn primary" disabled={!draftOk || busy} onClick={publish}>{t('ds.publishVersion', { n: nextVersion })}</button>
+            {missing && <p class="small">{t('ds.stillMissing', { what: missing })}</p>}
+          </>
+        ) : (
+          <>
+            <button type="button" class="btn primary" disabled={!ok || busy} onClick={publish}>{t('np.publish')}</button>
+            {!ok && missing && <p class="small">{t('np.missing', { what: missing })}</p>}
+          </>
+        )}
         {msg && <p class="warnbox">{msg}</p>}
       </main>
       <Footer />

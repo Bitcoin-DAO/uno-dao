@@ -18,6 +18,7 @@ export const go = (path: string) => {
 export function errText(e: unknown): string {
   const msg = String((e as Error)?.message ?? e);
   if ((e as Error)?.name === 'NotAllowedError' || msg === 'passkey-cancelled') return t('error.cancelled');
+  if (msg === 'hw-net-mainnet' || msg === 'hw-net-testnet' || msg === 'hw-path') return t(`error.${msg}` as 'error.hw-path');
   return t('error.generic', { msg });
 }
 
@@ -81,8 +82,8 @@ export function Footer() {
   );
 }
 
-export function Qr(props: { text: string; size?: number; label?: string }) {
-  const m = qrMatrix(props.text);
+export function Qr(props: { text: string; size?: number; label?: string; ecc?: 'L' | 'M' }) {
+  const m = qrMatrix(props.text, props.ecc);
   const q = 4; // quiet zone
   return (
     <svg class="qr" role="img" aria-label={props.label} width={props.size ?? 240} height={props.size ?? 240} viewBox={`${-q} ${-q} ${m.size + 2 * q} ${m.size + 2 * q}`} shape-rendering="crispEdges">

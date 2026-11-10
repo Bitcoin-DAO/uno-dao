@@ -4,9 +4,12 @@ import { mnemonicToSeedSync } from '@scure/bip39';
 import { broadcastRound, chainApis, receiptDepth, refreshTreasury, signAndPublish, signingKey, useApp } from '../app';
 import { fmtSats, t } from '../i18n';
 import { KIND } from '../core/events';
-import { explorerOf, feePolicyOf, pushPageOf, sourceLabel, suggestFee, txSeenBy, txStatus, type Broadcast, type TxStatus } from '../core/chain';
-import { parseDescriptor } from '../core/descriptor';
-import { buildRound, finalizeRound, masterFromSeed, memberSignatures, signWithMnemonicKey, type BuiltRound } from '../core/round';
+import { explorerOf, feePolicyOf, pushPageOf, sourceLabel, suggestFee, txDepth, txSeenBy, txStatus, type Broadcast, type TxStatus } from '../core/chain';
+import { parseDescriptor, treasuryAddress } from '../core/descriptor';
+import type { Network } from '../core/config';
+import { mergeSignatures } from '../core/hwkeys';
+import { SeedSignerSign } from './Hw';
+import { buildRound, estimateVsize, finalizeRound, masterFromSeed, memberSignatures, signWithMnemonicKey, type BuiltRound } from '../core/round';
 import { cadenceOf, roundLabel } from '../core/time';
 import { proposalLabel, type Output, type RoundView } from '../core/state';
 import { CouncilOnly, Address, Footer, Header, errText, go, askText } from './parts';
@@ -54,6 +57,8 @@ export function PrepareRound() {
   const rateOk = Number.isFinite(r) && r >= 1 && r <= max;
   const aboveCap = suggested !== undefined && suggested > max;
   const live = !!app.treasury && !app.treasuryLoading && (app.treasuryAt ?? 0) >= opened;
+  // Known at once from the live reading: is there enough for the payouts and a fee? (TEST DAO, 9 Nov 2026)
+  const shortBy = live && !close && rateOk ? missingFunds(app.treasury!.utxos.reduce((a, u) => a + u.value, 0), outputs, parseDescriptor(settings.descriptor, cfg.network), app.treasury!.utxos.length, r, cfg.network) : 0;
 
   const build = () => {
     setMsg(undefined);
@@ -111,7 +116,8 @@ export function PrepareRound() {
               {suggested !== undefined && <span class="small" style="font-weight:400">{t(policy === 'fast' ? 'rd.feeFast' : 'rd.feeEconomical', { rate: suggested })}</span>}
             </label>
             {aboveCap && <p class="warnbox">{t('rd.feeAboveCap', { max, rate: suggested! })}</p>}
-            <button type="button" class="btn secondary" disabled={!rateOk || !live} onClick={build}>{t('rd.build')}</button>
+            {shortBy > 0 && <p class="warnbox">{t('rd.shortBy', { missing: fmtSats(shortBy), balance: fmtSats(app.treasury!.utxos.reduce((a, u) => a + u.value, 0)) })}</p>}
+            <button type="button" class="btn secondary" disabled={!rateOk || !live || shortBy > 0} onClick={build}>{t('rd.build')}</button>
             {!live && (app.treasuryLoading || !app.treasuryError) && <p class="small">{t('rd.readingCoins')}</p>}
             {!live && !app.treasuryLoading && app.treasuryError && (
               <p class="small">{t('rd.coinsError', { msg: app.treasuryError })} <button type="button" class="btn link" onClick={() => refreshTreasury()}>{t('retry')}</button></p>
@@ -146,7 +152,7 @@ export function RoundDetail({ id }: { id: string }) {
   const [ext, setExt] = useState(false);
   const [pasted, setPasted] = useState('');
   const [copied, setCopied] = useState(false);
-  const [st, setSt] = useState<TxStatus | null>(); // undefined: not asked yet; null: no source knows it
+  const [st, setSt] = useState<(TxStatus & { disagree?: boolean }) | null>(); // undefined: not asked yet; null: no source knows it
   const [seen, setSeen] = useState<string[]>([]);
   const [sent, setSent] = useState<Broadcast>();
   const [risen, setRisen] = useState<number>();
@@ -161,7 +167,7 @@ export function RoundDetail({ id }: { id: string }) {
     if (!r?.inspection) return;
     const txid = r.inspection.txid;
     const check = () =>
-      void txStatus(chainApis(), txid).then(x => {
+      void txDepth(chainApis(), txid).then(x => {
         setSt(x ?? null);
         if (x && !r.receipt) void txSeenBy(chainApis(), txid).then(setSeen);
       });
@@ -194,7 +200,13 @@ export function RoundDetail({ id }: { id: string }) {
   };
   const signTest = () => run(() => signAndPublish(KIND.sign, { psbt: signWithMnemonicKey(r.content.psbt, masterFromSeed(mnemonicToSeedSync(tk!.mnemonic), cfg.network)) }, [['e', r.event.id]]));
   const useExternal = () => run(async () => {
-    const psbt = pasted.trim();
+    // A SeedSigner sends back a trimmed PSBT: its signatures go back into the round's own PSBT.
+    let psbt: string;
+    try {
+      psbt = mergeSignatures(r.content.psbt, pasted.trim());
+    } catch {
+      throw new Error(t('rd.badSigned'));
+    }
     const sigs = memberSignatures(psbt, parseDescriptor(settings.descriptor, cfg.network), cfg.network, myEntry!, ins!);
     if (!sigs.size) throw new Error(t('rd.badSigned'));
     await signAndPublish(KIND.sign, { psbt }, [['e', r.event.id]]);
@@ -268,6 +280,16 @@ export function RoundDetail({ id }: { id: string }) {
               <>
                 {tk && !app.identity?.wordsChecked ? <p class="warn">{t('words.needed')} <a href="#/profile">{t('words.toProfile')}</a></p>
                   : tk ? <button type="button" class="btn primary" disabled={busy} onClick={signTest}>{t('rd.signTest')}</button>
+                  : myEntry.device === 'seedsigner' ? (
+                    <SeedSignerSign
+                      psbt={r.content.psbt}
+                      descriptor={settings.descriptor}
+                      network={cfg.network}
+                      fingerprint={myEntry.fingerprint}
+                      check={psbt => memberSignatures(psbt, parseDescriptor(settings.descriptor, cfg.network), cfg.network, myEntry, ins!).size === ins!.inputs.length}
+                      onSigned={async psbt => void (await signAndPublish(KIND.sign, { psbt }, [['e', r.event.id]]))}
+                    />
+                  )
                   : <p class="small">{t('rd.noKey')} <a href="#/profile">{t('tk.link')}</a></p>}
                 <button type="button" class="btn link" style="align-self:flex-start" onClick={() => setExt(!ext)}>{t('rd.external')}</button>
                 {ext && (
@@ -332,6 +354,8 @@ export function RoundDetail({ id }: { id: string }) {
             <div class="kv"><span>{t('rd.txid')}</span><a class="mono" href={`${explorerOf(apis[0] ?? '')}/tx/${ins.txid}`} target="_blank" rel="noopener">{ins.txid.slice(0, 16)}…</a></div>
             {height ? (
               <p class="ok">{t('rd.receipt', { h: height })}</p>
+            ) : st?.disagree ? (
+              <p class="warn">{t('rd.sourcesDisagree')}</p>
             ) : st?.confirmed ? (
               // Anyone sees the confirmation from the chain; the receipt follows from a council phone once it is deep enough.
               <p class="small">
@@ -381,4 +405,15 @@ function BroadcastReport({ b }: { b: Broadcast }) {
 function broadcastPages(apis: string[], pages: string[] = []): string[] {
   const own = pages.filter(u => /^https:\/\//.test(u));
   return own.length ? own : [...new Set(apis.map(pushPageOf))];
+}
+
+/**
+ * Sats missing for these payouts at this fee rate, spending every coin, with a change output (0: enough).
+ * An estimate: the round's own build is the final word.
+ */
+export function missingFunds(balance: number, outputs: Output[], d: ReturnType<typeof parseDescriptor>, nCoins: number, rate: number, network: Network): number {
+  const pay = outputs.reduce((a, o) => a + o.amount_sat, 0);
+  const change = treasuryAddress(d, network, 1, 0).address;
+  const fee = Math.ceil(estimateVsize(d, Math.max(1, nCoins), [...outputs.map(o => o.address), change], network) * rate);
+  return Math.max(0, pay + fee - balance);
 }
